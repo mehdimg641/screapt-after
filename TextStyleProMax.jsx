@@ -23,7 +23,7 @@
     // 0. Constants & small utilities
     // -------------------------------------------------------------------------
     var SCRIPT_NAME = "Text Style Pro Max";
-    var SCRIPT_VERSION = "1.0.0";
+    var SCRIPT_VERSION = "2.0.0";
 
     // Layer-style group on every layer.
     var LS_GROUP = "ADBE Layer Styles";
@@ -128,44 +128,22 @@
         return mix(c, [0, 0, 0], -f);
     }
 
+    var ERRORS = []; // collected non-fatal issues, surfaced in the panel
     function logErr(where, e) {
-        $.writeln("[" + SCRIPT_NAME + "] " + where + ": " + (e && e.toString ? e.toString() : e));
+        var msg = where + ": " + (e && e.toString ? e.toString() : e);
+        try { ERRORS.push(msg); } catch (x) {}
+        $.writeln("[" + SCRIPT_NAME + "] " + msg);
     }
 
     // -------------------------------------------------------------------------
-    // 1. Low-level AE property helpers (defensive — never throw upward)
+    // 1. Low-level AE helpers (defensive — never throw upward)
+    //    NOTE: Layer Styles can't be added by script (addProperty fails), so the
+    //    whole engine is built from EFFECTS + the text layer's own fill/stroke +
+    //    track-mattes + duplicates — all of which ARE reliably scriptable.
     // -------------------------------------------------------------------------
+    function logErr2(where, e) { logErr(where, e); }
 
-    // Add (or fetch existing) a layer style by its "enabled" matchName,
-    // e.g. "dropShadow/enabled". Returns the style PropertyGroup or null.
-    function addStyle(layer, enabledMatch) {
-        try {
-            var ls = layer.property(LS_GROUP);
-            if (!ls) return null;
-            // The style group's matchName is the prefix before "/enabled".
-            var groupMatch = enabledMatch.replace(/\/enabled$/, "");
-            // Already present?
-            for (var i = 1; i <= ls.numProperties; i++) {
-                var p = ls.property(i);
-                if (p && (p.matchName === groupMatch || p.matchName === enabledMatch)) return p;
-            }
-            if (ls.canAddProperty(enabledMatch)) return ls.addProperty(enabledMatch);
-            if (ls.canAddProperty(groupMatch)) return ls.addProperty(groupMatch);
-        } catch (e) { logErr("addStyle " + enabledMatch, e); }
-        return null;
-    }
-
-    // Set a property (by matchName) on a group, swallowing failures so one bad
-    // property can't abort a whole style.
-    function setP(group, matchName, value) {
-        if (!group) return;
-        try {
-            var p = group.property(matchName);
-            if (p && typeof p.setValue === "function") p.setValue(value);
-        } catch (e) { logErr("setP " + matchName, e); }
-    }
-
-    // Apply an effect by matchName, returns the effect or null.
+    // Apply an effect by matchName; returns the effect group or null.
     function addEffect(layer, matchName, niceName) {
         try {
             var fx = layer.property("ADBE Effect Parade");
@@ -176,184 +154,157 @@
         } catch (e) { logErr("addEffect " + matchName, e); }
         return null;
     }
-
-    // Set an effect property by 1-based index (effect params are most reliable
-    // by index across locales).
     function setFx(effect, index, value) {
         if (!effect) return;
-        try { effect.property(index).setValue(value); }
-        catch (e) { logErr("setFx[" + index + "]", e); }
+        try { effect.property(index).setValue(value); } catch (e) { logErr("setFx[" + index + "]", e); }
     }
-
     function setFxExpr(effect, index, expr) {
         if (!effect) return;
-        try { effect.property(index).expression = expr; }
-        catch (e) { logErr("setFxExpr[" + index + "]", e); }
+        try { effect.property(index).expression = expr; } catch (e) { logErr("setFxExpr[" + index + "]", e); }
     }
 
-    // Fill-opacity lives in Blending Options; used by the outline style.
-    function setFillOpacity(layer, pct) {
+    // ---- Text fill / stroke via TextDocument (locale-independent, reliable) ----
+    function textDoc(layer) {
+        return layer.property("ADBE Text Properties").property("ADBE Text Document");
+    }
+    function textFill(layer, color) {
+        try { var p = textDoc(layer), d = p.value; d.applyFill = true; d.fillColor = color; p.setValue(d); }
+        catch (e) { logErr("textFill", e); }
+    }
+    function textNoFill(layer) {
+        try { var p = textDoc(layer), d = p.value; d.applyFill = false; p.setValue(d); }
+        catch (e) { logErr("textNoFill", e); }
+    }
+    function textStroke(layer, color, width, overFill) {
         try {
-            var ls = layer.property(LS_GROUP);
-            var bo = ls ? ls.property(LS_BLEND) : null;
-            if (bo) setP(bo, "ADBE Layer Fill Opacity2", pct);
-        } catch (e) { logErr("setFillOpacity", e); }
+            var p = textDoc(layer), d = p.value;
+            d.applyStroke = true; d.strokeColor = color; d.strokeWidth = width;
+            d.strokeOverFill = (overFill == null) ? true : overFill;
+            p.setValue(d);
+        } catch (e) { logErr("textStroke", e); }
     }
 
-    // -------------------------------------------------------------------------
-    // 2. Re-usable style "ingredients" (parametrized by options)
-    //    opts: { primary:[r,g,b], secondary:[r,g,b], intensity:0..2 }
-    // -------------------------------------------------------------------------
-
-    function ingGradientOverlay(layer, angle, opacity, blendMode) {
-        // Uses AE's default black->white gradient as a metallic ramp; we only
-        // drive angle / opacity / blend because custom gradient stops aren't
-        // script-settable on layer styles.
-        var g = addStyle(layer, "gradientFill/enabled");
-        if (!g) return;
-        setP(g, "gradientFill/opacity", opacity == null ? 100 : opacity);
-        setP(g, "gradientFill/angle", angle == null ? 90 : angle);
-        if (blendMode != null) setP(g, "gradientFill/mode2", blendMode);
-        setP(g, "gradientFill/scale", 100);
+    // ---- Alpha-preserving effect ingredients ----
+    // Bevel Alpha: 1 Edge Thickness, 2 Light Angle, 3 Light Color, 4 Light Intensity
+    function bevelAlpha(layer, thickness, angleDeg, lightColor, intensity) {
+        var b = addEffect(layer, "ADBE Bevel Alpha", "Bevel");
+        setFx(b, 1, thickness);
+        setFx(b, 2, (angleDeg == null ? -60 : angleDeg) * Math.PI / 180); // light angle is radians
+        setFx(b, 3, lightColor || [1, 1, 1]);
+        setFx(b, 4, intensity == null ? 0.6 : intensity);
+        return b;
     }
-
-    function ingColorOverlay(layer, color, opacity, blendMode) {
-        var c = addStyle(layer, "solidFill/enabled");
-        if (!c) return;
-        setP(c, "solidFill/color", color);
-        setP(c, "solidFill/opacity", opacity == null ? 100 : opacity);
-        if (blendMode != null) setP(c, "solidFill/mode2", blendMode);
+    // Tritone: 2 Highlights, 3 Midtones, 4 Shadows, 5 Blend With Original
+    function tritone(layer, shadows, mids, highs, blend) {
+        var t = addEffect(layer, "ADBE Tritone", "Tone Map");
+        setFx(t, 2, highs); setFx(t, 3, mids); setFx(t, 4, shadows);
+        if (blend != null) setFx(t, 5, blend);
+        return t;
     }
-
-    function ingBevel(layer, hi, lo, depth, size, soften, angle, altitude) {
-        var b = addStyle(layer, "bevelEmboss/enabled");
-        if (!b) return;
-        setP(b, "bevelEmboss/bevelStyle", 1);       // Inner Bevel
-        setP(b, "bevelEmboss/bevelTechnique", 2);   // Chisel Hard (crisp metal)
-        setP(b, "bevelEmboss/strengthRatio", depth);// Depth %
-        setP(b, "bevelEmboss/blur", size);          // Size
-        setP(b, "bevelEmboss/softness", soften || 0);
-        setP(b, "bevelEmboss/useGlobalAngle", false);
-        setP(b, "bevelEmboss/localLightingAngle", angle == null ? 120 : angle);
-        setP(b, "bevelEmboss/localLightingAltitude", altitude == null ? 32 : altitude);
-        setP(b, "bevelEmboss/highlightColor", hi || [1, 1, 1]);
-        setP(b, "bevelEmboss/highlightOpacity", 90);
-        setP(b, "bevelEmboss/shadowColor", lo || [0, 0, 0]);
-        setP(b, "bevelEmboss/shadowOpacity", 70);
-    }
-
-    function ingSatin(layer, color, opacity) {
-        var s = addStyle(layer, "chromeFX/enabled");
-        if (!s) return;
-        setP(s, "chromeFX/color", color || [1, 1, 1]);
-        setP(s, "chromeFX/opacity", opacity == null ? 35 : opacity);
-        setP(s, "chromeFX/mode2", 3); // Screen-ish sheen
-        setP(s, "chromeFX/blur", 18);
-        setP(s, "chromeFX/distance", 16);
-        setP(s, "chromeFX/invert", true);
-    }
-
-    function ingStroke(layer, color, size, position, opacity) {
-        var s = addStyle(layer, "frameFX/enabled");
-        if (!s) return;
-        setP(s, "frameFX/color", color);
-        setP(s, "frameFX/size", size);
-        setP(s, "frameFX/opacity", opacity == null ? 100 : opacity);
-        setP(s, "frameFX/style", position == null ? 2 : position); // 1=out 2=center 3=in
-    }
-
-    function ingDropShadow(layer, color, opacity, distance, size, angle) {
-        var d = addStyle(layer, "dropShadow/enabled");
-        if (!d) return;
-        setP(d, "dropShadow/color", color || [0, 0, 0]);
-        setP(d, "dropShadow/opacity", opacity == null ? 60 : opacity);
-        setP(d, "dropShadow/useGlobalAngle", false);
-        setP(d, "dropShadow/localLightingAngle", angle == null ? 120 : angle);
-        setP(d, "dropShadow/distance", distance == null ? 10 : distance);
-        setP(d, "dropShadow/blur", size == null ? 12 : size);
-    }
-
-    function ingInnerShadow(layer, color, opacity, distance, size) {
-        var d = addStyle(layer, "innerShadow/enabled");
-        if (!d) return;
-        setP(d, "innerShadow/color", color || [0, 0, 0]);
-        setP(d, "innerShadow/opacity", opacity == null ? 50 : opacity);
-        setP(d, "innerShadow/distance", distance == null ? 4 : distance);
-        setP(d, "innerShadow/blur", size == null ? 6 : size);
-    }
-
-    function ingOuterGlow(layer, color, opacity, size, spread) {
-        var g = addStyle(layer, "outerGlow/enabled");
-        if (!g) return;
-        setP(g, "outerGlow/AEColorChoice", 1); // single color (script-settable)
-        setP(g, "outerGlow/color", color);
-        setP(g, "outerGlow/opacity", opacity == null ? 90 : opacity);
-        setP(g, "outerGlow/blur", size == null ? 30 : size);
-        setP(g, "outerGlow/chokeMatte", spread == null ? 6 : spread);
-        setP(g, "outerGlow/mode2", 3); // Screen
-    }
-
-    function ingInnerGlow(layer, color, opacity, size) {
-        var g = addStyle(layer, "innerGlow/enabled");
-        if (!g) return;
-        setP(g, "innerGlow/AEColorChoice", 1);
-        setP(g, "innerGlow/color", color);
-        setP(g, "innerGlow/opacity", opacity == null ? 80 : opacity);
-        setP(g, "innerGlow/blur", size == null ? 8 : size);
-        setP(g, "innerGlow/mode2", 3);
-    }
-
-    // Glow EFFECT ("ADBE Glo2"). Param indices are stable:
-    // 2 Glow Threshold, 3 Glow Radius, 4 Glow Intensity, 6 Glow Colors,
-    // 8 Color A, 9 Color B.
-    function ingGlowFx(layer, radius, intensity, threshold, name) {
+    // Glow: 2 Threshold, 3 Radius, 4 Intensity
+    function glowFx(layer, radius, intensity, threshold, name) {
         var g = addEffect(layer, "ADBE Glo2", name || "Glow");
-        if (!g) return null;
         setFx(g, 2, threshold == null ? 50 : threshold);
-        setFx(g, 3, radius == null ? 40 : radius);
-        setFx(g, 4, intensity == null ? 1.5 : intensity);
+        setFx(g, 3, radius == null ? 30 : radius);
+        setFx(g, 4, intensity == null ? 1.4 : intensity);
         return g;
     }
-
-    // Tritone ("ADBE Tritone") — maps luminance to 2/3 colors. The trick that
-    // lets us build a true 2-colour gradient across text: combine with a b/w
-    // Gradient Overlay. Indices: 2 Highlights, 3 Midtones, 4 Shadows, 5 Blend.
-    function ingTritone(layer, shadows, highlights, midtones) {
-        var t = addEffect(layer, "ADBE Tritone", "Color Map");
-        if (!t) return;
-        setFx(t, 2, highlights);
-        setFx(t, 4, shadows);
-        if (midtones) setFx(t, 3, midtones);
+    // Drop Shadow effect: 1 Color, 2 Opacity(0-255), 3 Direction, 4 Distance, 5 Softness
+    function dropShadowFx(layer, color, opacityPct, direction, distance, softness) {
+        var d = addEffect(layer, "ADBE Drop Shadow", "Drop Shadow");
+        setFx(d, 1, color || [0, 0, 0]);
+        setFx(d, 2, Math.round(clamp((opacityPct == null ? 60 : opacityPct) / 100, 0, 1) * 255));
+        setFx(d, 3, direction == null ? 135 : direction);
+        setFx(d, 4, distance == null ? 8 : distance);
+        setFx(d, 5, softness == null ? 12 : softness);
+        return d;
+    }
+    function fillFx(layer, color) { // Fill effect: solid recolor, keeps alpha
+        var f = addEffect(layer, "ADBE Fill", "Recolor");
+        setFx(f, 2, color); // Color
+        return f;
     }
 
-    // -------------------------------------------------------------------------
-    // 3. Text animator helper (kinetic reveal)
-    // -------------------------------------------------------------------------
+    // Build a metallic SURFACE on the text itself: bevel shading remapped to a
+    // metal palette. No precomp, no track matte — alpha stays intact.
+    function metalSurface(layer, o, shadowCol, midCol, hiCol, edge, glowR, warmGlow) {
+        bevelAlpha(layer, edge * (0.6 + 0.4 * o.intensity), -58, [1, 1, 1], 0.75 * o.intensity);
+        tritone(layer, shadowCol, midCol, hiCol);
+        glowFx(layer, glowR * o.intensity, 1.1, 62, "Metal Bloom");
+        dropShadowFx(layer, warmGlow ? [0.05, 0.02, 0] : [0, 0, 0], 60, 135, 9 + edge, 14);
+    }
+
+    // ---- Directional gradient INSIDE text via Ramp solid + alpha matte ----
+    function setAlphaMatte(fillLayer, matteLayer) {
+        try { fillLayer.setTrackMatte(matteLayer, TrackMatteType.ALPHA); return true; } // AE 2023+
+        catch (e) {
+            try { matteLayer.moveBefore(fillLayer); fillLayer.trackMatteType = TrackMatteType.ALPHA; return true; }
+            catch (e2) { logErr("setAlphaMatte", e2); return false; }
+        }
+    }
+    function gradientMatte(layer, colA, colB, angleDeg) {
+        var comp = layer.containingComp;
+        var sol;
+        try { sol = comp.layers.addSolid([1, 1, 1], layer.name + " grad", comp.width, comp.height, comp.pixelAspect, comp.duration); }
+        catch (e) { logErr("addSolid", e); return null; }
+        sol.moveBefore(layer);
+        var ramp = addEffect(sol, "ADBE Ramp", "Gradient");
+        var w = comp.width, h = comp.height, rad = (angleDeg == null ? 45 : angleDeg) * Math.PI / 180;
+        var cx = w / 2, cy = h / 2, len = Math.max(w, h) * 0.5;
+        setFx(ramp, 1, [cx - Math.cos(rad) * len, cy - Math.sin(rad) * len]);
+        setFx(ramp, 2, colA);
+        setFx(ramp, 3, [cx + Math.cos(rad) * len, cy + Math.sin(rad) * len]);
+        setFx(ramp, 4, colB);
+        setFx(ramp, 5, 1); // linear
+        setAlphaMatte(sol, layer);
+        return sol;
+    }
+
+    // Soft shadow as a real duplicate (keeps text alpha, unlike a matted solid).
+    function softShadowDup(layer, color, offset, blur, opacity) {
+        try {
+            var d = layer.duplicate();
+            d.moveAfter(layer);
+            textNoFill(d);
+            textFill(d, color || [0, 0, 0]);
+            var fb = addEffect(d, "ADBE Box Blur2", "Soft");
+            setFx(fb, 1, blur == null ? 10 : blur);
+            var p = d.property("ADBE Transform Group").property("ADBE Position");
+            var b = p.value;
+            p.setValue([b[0] + (offset ? offset[0] : 6), b[1] + (offset ? offset[1] : 8)]);
+            d.property("ADBE Transform Group").property("ADBE Opacity").setValue(opacity == null ? 55 : opacity);
+            d.name = layer.name + " shadow";
+            return d;
+        } catch (e) { logErr("softShadowDup", e); return null; }
+    }
+
+    // ---- Kinetic per-character reveal animator ----
+    function easeKeys(prop) {
+        try {
+            var n = prop.numKeys;
+            for (var i = 1; i <= n; i++) prop.setInterpolationTypeAtKey(i, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER);
+            if (n >= 2) {
+                var e = new KeyframeEase(0, 80);
+                prop.setTemporalEaseAtKey(1, [e], [e]);
+                prop.setTemporalEaseAtKey(n, [e], [e]);
+            }
+        } catch (e) { logErr("easeKeys", e); }
+    }
     function addKineticAnimator(layer) {
         try {
             var animators = layer.property("ADBE Text Properties").property("ADBE Text Animators");
             var anim = animators.addProperty("ADBE Text Animator");
             anim.name = "Kinetic In";
             var props = anim.property("ADBE Text Animator Properties");
-            // Position Y, Scale, Opacity, Blur
-            var pos = props.addProperty("ADBE Text Position 3D");
-            pos.setValue([0, 120, 0]);
-            var scl = props.addProperty("ADBE Text Scale 3D");
-            scl.setValue([60, 60, 100]);
-            var op = props.addProperty("ADBE Text Opacity");
-            op.setValue(0);
-            var blur = props.addProperty("ADBE Text Blur");
-            try { blur.setValue([0, 40]); } catch (e) { try { blur.setValue(40); } catch (e2) {} }
-
-            // Range selector keyframed to sweep across the text. We animate the
-            // selector Offset from -100 -> 100, which reveals characters in
-            // sequence regardless of the selector's "based on" / shape defaults.
+            props.addProperty("ADBE Text Position 3D").setValue([0, 120, 0]);
+            props.addProperty("ADBE Text Scale 3D").setValue([55, 55, 100]);
+            props.addProperty("ADBE Text Opacity").setValue(0);
+            try { props.addProperty("ADBE Text Blur").setValue([0, 40]); } catch (e) {}
             var sel = anim.property("ADBE Text Selectors").property("ADBE Text Selector");
             var offset = null;
             try { offset = sel.property("ADBE Text Percent Offset"); } catch (e) {}
             if (offset) {
-                var t0 = layer.containingComp.time;
-                var dur = 0.8;
+                var t0 = layer.containingComp.time, dur = 0.8;
                 offset.setValueAtTime(t0, -100);
                 offset.setValueAtTime(t0 + dur, 100);
                 easeKeys(offset);
@@ -361,31 +312,15 @@
         } catch (e) { logErr("addKineticAnimator", e); }
     }
 
-    function easeKeys(prop) {
-        try {
-            for (var i = 1; i <= prop.numKeys; i++) {
-                prop.setInterpolationTypeAtKey(i, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER);
-            }
-            var n = prop.numKeys;
-            if (n >= 2) {
-                var easeIn = new KeyframeEase(0, 80);
-                var easeOut = new KeyframeEase(0, 80);
-                prop.setTemporalEaseAtKey(1, [easeOut], [easeOut]);
-                prop.setTemporalEaseAtKey(n, [easeIn], [easeIn]);
-            }
-        } catch (e) { logErr("easeKeys", e); }
-    }
-
-    // Faux-3D extrude by stacking offset duplicates behind the source layer.
+    // ---- Real stacked-duplicate 3D extrude ----
     function build3DExtrude(layer, faceColor, sideColor, steps, dx, dy) {
-        var comp = layer.containingComp;
         var made = [];
         try {
             for (var i = steps; i >= 1; i--) {
                 var dup = layer.duplicate();
-                dup.moveAfter(layer); // behind the original face
+                dup.moveAfter(layer);
                 var f = i / steps;
-                ingColorOverlay(dup, shade(sideColor, -0.15 * (1 - f)), 100);
+                textFill(dup, shade(sideColor, -0.10 * (1 - f)));
                 var p = dup.property("ADBE Transform Group").property("ADBE Position");
                 var base = p.value;
                 p.setValue([base[0] + dx * i, base[1] + dy * i]);
@@ -393,96 +328,78 @@
                 made.push(dup);
             }
         } catch (e) { logErr("build3DExtrude", e); }
-        // Face on top.
-        ingColorOverlay(layer, faceColor, 100);
-        ingBevel(layer, shade(faceColor, 0.4), shade(faceColor, -0.4), 120, 3, 0, 120, 40);
+        textFill(layer, faceColor);
+        bevelAlpha(layer, 3, -55, [1, 1, 1], 0.5);
         return made;
     }
 
     // -------------------------------------------------------------------------
-    // 4. THE STYLE LIBRARY  (ordered newest/hottest first)
-    //    Each: id, name, cat, badge, desc, apply(layer, opts)
+    // 4. THE STYLE LIBRARY (ordered newest / hottest first)
     // -------------------------------------------------------------------------
     var CATEGORIES = ["All", "Metal", "Neon", "3D", "Retro", "Social", "FX", "Favorites"];
 
     var STYLES = [
         {
             id: "chrome_y2k", name: "Chrome Y2K", cat: "Metal", badge: "NEW",
-            desc: "Liquid metal / mirror chrome. Gradient + chisel bevel + satin sheen.",
+            desc: "Liquid metal / mirror chrome — bevel shading remapped to a steel palette + bloom.",
             apply: function (layer, o) {
-                ingGradientOverlay(layer, 90, 100, null);
-                ingColorOverlay(layer, mix(o.primary, [0.78, 0.83, 0.92], 0.55), 35, 9); // soft-light tint
-                ingBevel(layer, [1, 1, 1], shade(o.primary, -0.85), 220 * o.intensity, 5, 0, 118, 30);
-                ingSatin(layer, [1, 1, 1], 30);
-                ingInnerShadow(layer, [0.05, 0.07, 0.12], 45, 3, 5);
-                ingStroke(layer, shade(o.primary, -0.4), 2, 3, 60);
-                ingDropShadow(layer, [0, 0, 0], 55, 12, 16, 120);
-                ingGlowFx(layer, 22, 1.1 * o.intensity, 65, "Chrome Bloom");
+                textFill(layer, [0.85, 0.88, 0.95]);
+                var tint = o._primaryIsDefault ? [0.62, 0.68, 0.80] : o.primary;
+                metalSurface(layer, o,
+                    shade(tint, -0.78),                 // shadows: dark steel
+                    mix(tint, [0.85, 0.9, 1], 0.35),    // mids
+                    [1, 1, 1],                          // highlights: white
+                    6, 22, false);
+                textStroke(layer, shade(tint, -0.5), 2, false);
             }
         },
         {
             id: "gold_luxury", name: "Gold Luxury", cat: "Metal", badge: "HOT",
-            desc: "Royal gold foil with warm bevel, satin and a soft golden bloom.",
+            desc: "Royal gold foil — warm bevel tonemap, golden bloom and soft drop shadow.",
             apply: function (layer, o) {
-                var base = o._primaryIsDefault ? hexToRgb("#E6B450") : o.primary;
-                ingColorOverlay(layer, base, 100);
-                ingGradientOverlay(layer, 90, 55, 9); // soft-light metallic banding
-                ingBevel(layer, hexToRgb("#FFF4CC"), hexToRgb("#5E3D0C"), 200 * o.intensity, 4, 0, 118, 34);
-                ingSatin(layer, hexToRgb("#FFE9A8"), 28);
-                ingOuterGlow(layer, hexToRgb("#FFCB5E"), 60, 26 * o.intensity, 4);
-                ingStroke(layer, hexToRgb("#7A521A"), 2, 3, 80);
-                ingDropShadow(layer, [0.04, 0.02, 0], 65, 10, 14, 120);
+                var g = o._primaryIsDefault ? hexToRgb("#E6B450") : o.primary;
+                textFill(layer, g);
+                metalSurface(layer, o,
+                    hexToRgb("#5A3D0C"),   // shadows
+                    hexToRgb("#C99A3A"),   // mids
+                    hexToRgb("#FFF4C8"),   // highlights
+                    6, 26, true);
+                glowFx(layer, 30 * o.intensity, 1.0, 55, "Gold Sheen");
+                textStroke(layer, hexToRgb("#7A521A"), 2, false);
             }
         },
         {
             id: "variable_kinetic", name: "Variable Kinetic", cat: "Social", badge: "AE 2026",
-            desc: "Bold flat look + a per-character kinetic reveal animation (in).",
+            desc: "Bold flat fill + a per-character kinetic reveal (adds keyframes at the playhead).",
             anim: true,
-            desc2: "Adds keyframes at the playhead.",
             apply: function (layer, o) {
-                ingColorOverlay(layer, o._primaryIsDefault ? hexToRgb("#F2F4FA") : o.primary, 100);
-                ingDropShadow(layer, shade(o.secondary, -0.2), 40, 6, 10, 115);
+                textFill(layer, o._primaryIsDefault ? hexToRgb("#F2F4FA") : o.primary);
+                dropShadowFx(layer, shade(o.secondary, -0.2), 40, 135, 6, 10);
                 addKineticAnimator(layer);
             }
         },
         {
             id: "neon_cyberpunk", name: "Neon Cyberpunk", cat: "Neon", badge: "HOT",
-            desc: "Deep-glow neon tube: colored stroke, inner core, layered outer glow.",
+            desc: "Deep-glow neon tube: bright core, colored stroke, stacked outer glows.",
             apply: function (layer, o) {
                 var neon = o._primaryIsDefault ? hexToRgb("#18E0FF") : o.primary;
-                ingColorOverlay(layer, shade(neon, 0.25), 100);
-                ingStroke(layer, neon, 3, 2, 100);
-                ingInnerGlow(layer, [1, 1, 1], 85, 6);
-                ingOuterGlow(layer, neon, 100, 45 * o.intensity, 8);
-                ingDropShadow(layer, neon, 70, 0, 30, 90);
-                ingGlowFx(layer, 60 * o.intensity, 2.2, 35, "Neon Bloom");
-                ingGlowFx(layer, 18, 1.4, 60, "Neon Core");
+                textFill(layer, shade(neon, 0.55));
+                textStroke(layer, neon, 5, true);
+                glowFx(layer, 55 * o.intensity, 2.2, 30, "Neon Bloom");
+                glowFx(layer, 16, 1.5, 55, "Neon Core");
+                dropShadowFx(layer, neon, 75, 90, 0, 35);
             }
         },
         {
             id: "retro_marquee", name: "Retro Marquee", cat: "Retro", badge: "RETRO",
-            desc: "Bubbly bulb-sign letters: smooth round bevel, warm glow, ring stroke.",
+            desc: "Bubbly bulb-sign letters: soft round bevel, ring stroke and warm glow.",
             apply: function (layer, o) {
                 var c = o._primaryIsDefault ? hexToRgb("#A646F0") : o.primary;
-                ingColorOverlay(layer, c, 100);
-                // rounded bevel for the bulb body
-                var b = addStyle(layer, "bevelEmboss/enabled");
-                if (b) {
-                    setP(b, "bevelEmboss/bevelStyle", 1);
-                    setP(b, "bevelEmboss/bevelTechnique", 0); // Smooth (round)
-                    setP(b, "bevelEmboss/strengthRatio", 160 * o.intensity);
-                    setP(b, "bevelEmboss/blur", 9);
-                    setP(b, "bevelEmboss/highlightColor", [1, 1, 1]);
-                    setP(b, "bevelEmboss/highlightOpacity", 85);
-                    setP(b, "bevelEmboss/shadowColor", shade(c, -0.7));
-                    setP(b, "bevelEmboss/shadowOpacity", 70);
-                    setP(b, "bevelEmboss/useGlobalAngle", false);
-                    setP(b, "bevelEmboss/localLightingAngle", 120);
-                    setP(b, "bevelEmboss/localLightingAltitude", 45);
-                }
-                ingStroke(layer, shade(c, 0.5), 4, 1, 90);
-                ingOuterGlow(layer, c, 90, 40 * o.intensity, 4);
-                ingDropShadow(layer, [0, 0, 0], 60, 14, 18, 120);
+                textFill(layer, c);
+                textStroke(layer, shade(c, 0.55), 4, false);
+                bevelAlpha(layer, 6 * o.intensity, -55, [1, 1, 1], 0.7);
+                glowFx(layer, 40 * o.intensity, 1.6, 45, "Marquee Glow");
+                dropShadowFx(layer, [0, 0, 0], 60, 120, 14, 18);
             }
         },
         {
@@ -492,10 +409,9 @@
             apply: function (layer, o) {
                 var face = o._primaryIsDefault ? hexToRgb("#E9C39A") : o.primary;
                 var side = o._secondaryIsDefault ? shade(face, -0.45) : o.secondary;
-                var steps = Math.round(14 * o.intensity);
-                steps = clamp(steps, 6, 30);
+                var steps = clamp(Math.round(14 * o.intensity), 6, 30);
                 build3DExtrude(layer, face, side, steps, 1.6, 1.6);
-                ingDropShadow(layer, [0, 0, 0], 45, steps * 2, 24, 120);
+                dropShadowFx(layer, [0, 0, 0], 45, 135, steps * 2, 24);
             }
         },
         {
@@ -503,91 +419,76 @@
             desc: "Animated RGB-split + jitter (chromatic aberration) via duplicate channels.",
             heavy: true,
             apply: function (layer, o) {
-                // Original stays white-ish core.
-                ingColorOverlay(layer, [0.93, 0.93, 0.95], 100);
-                var comp = layer.containingComp;
-
-                function makeShift(tag, mixR, mixG, mixB, sx) {
+                textFill(layer, [0.93, 0.93, 0.95]);
+                function shift(tag, col, sx) {
                     var d = layer.duplicate();
                     d.moveBefore(layer);
                     d.name = layer.name + " " + tag;
-                    var cm = addEffect(d, "ADBE Channel Mixer", "Split " + tag);
-                    // Channel Mixer indices: 1 R-R,2 R-G,3 R-B,... we zero unwanted.
-                    try {
-                        setFx(cm, 1, mixR[0]); setFx(cm, 2, mixR[1]); setFx(cm, 3, mixR[2]);
-                        setFx(cm, 6, mixG[0]); setFx(cm, 7, mixG[1]); setFx(cm, 8, mixG[2]);
-                        setFx(cm, 11, mixB[0]); setFx(cm, 12, mixB[1]); setFx(cm, 13, mixB[2]);
-                    } catch (e) {}
+                    textFill(d, col);
                     try { d.blendingMode = BlendingMode.SCREEN; } catch (e) {}
                     var p = d.property("ADBE Transform Group").property("ADBE Position");
-                    var base = p.value;
-                    p.setValue([base[0] + sx, base[1]]);
+                    var base = p.value; p.setValue([base[0] + sx, base[1]]);
                     p.expression =
                         "seedRandom(index, true);\n" +
-                        "p = posterizeTime(12); \n" +
+                        "posterizeTime(12);\n" +
                         "x = wiggle(8, " + (10 * o.intensity).toFixed(1) + ")[0];\n" +
                         "[x, value[1]];";
                     return d;
                 }
-                makeShift("R", [1, 0, 0], [0, 0, 0], [0, 0, 0], -8 * o.intensity);
-                makeShift("B", [0, 0, 0], [0, 0, 0], [0, 0, 1], 8 * o.intensity);
-
-                // Slice/displacement on the core.
+                shift("R", [1, 0.05, 0.1], -8 * o.intensity);
+                shift("B", [0.1, 0.4, 1], 8 * o.intensity);
                 var tw = addEffect(layer, "ADBE Wave Warp", "Glitch Slice");
                 if (tw) {
-                    setFx(tw, 1, 8 * o.intensity); // wave height
-                    setFx(tw, 2, 200);             // wave width
-                    setFxExpr(tw, 4, "posterizeTime(8); time*220 + random()*360"); // direction churn
+                    setFx(tw, 1, 8 * o.intensity);
+                    setFx(tw, 2, 200);
+                    setFxExpr(tw, 4, "posterizeTime(8); time*220 + random()*360");
                 }
                 layer.property("ADBE Transform Group").property("ADBE Position").expression =
                     "seedRandom(index, true);\n" +
-                    "p = posterizeTime(10);\n" +
-                    "value + (random(-1,1) < 0.85 ? [0,0] : wiggle(20, " + (6 * o.intensity).toFixed(1) + ") - value);";
+                    "posterizeTime(10);\n" +
+                    "value + (random() < 0.85 ? [0,0] : (wiggle(20, " + (6 * o.intensity).toFixed(1) + ") - value));";
             }
         },
         {
             id: "fluid_morph", name: "Fluid Morph", cat: "FX", badge: "TREND",
-            desc: "Liquid wobbling edges (animated Turbulent Displace) + glossy fill + glow.",
+            desc: "Liquid wobbling edges (animated Turbulent Displace) + glossy tonemap + glow.",
             apply: function (layer, o) {
-                ingColorOverlay(layer, o._primaryIsDefault ? hexToRgb("#5B8CFF") : o.primary, 100);
-                ingGradientOverlay(layer, 90, 45, 9);
-                ingBevel(layer, [1, 1, 1], shade(o.primary, -0.6), 130 * o.intensity, 7, 6, 120, 50);
-                ingOuterGlow(layer, o._secondaryIsDefault ? hexToRgb("#B852FF") : o.secondary, 80, 30 * o.intensity, 4);
-
+                var a = o._primaryIsDefault ? hexToRgb("#5B8CFF") : o.primary;
+                var b = o._secondaryIsDefault ? hexToRgb("#B852FF") : o.secondary;
+                textFill(layer, mix(a, b, 0.5));
+                bevelAlpha(layer, 7 * o.intensity, -55, [1, 1, 1], 0.7);
+                tritone(layer, shade(a, -0.3), mix(a, b, 0.5), shade(b, 0.4));
                 var td = addEffect(layer, "ADBE Turbulent Displace", "Liquid");
-                if (td) {
-                    setFx(td, 2, 22 * o.intensity); // amount
-                    setFx(td, 3, 60);               // size
-                    setFxExpr(td, 7, "time*120"); // evolution -> continuous flow
-                }
-                ingGlowFx(layer, 20 * o.intensity, 1.2, 55, "Sheen");
+                if (td) { setFx(td, 2, 22 * o.intensity); setFx(td, 3, 60); setFxExpr(td, 7, "time*120"); }
+                glowFx(layer, 24 * o.intensity, 1.3, 50, "Sheen");
+                dropShadowFx(layer, shade(a, -0.6), 45, 135, 8, 14);
             }
         },
         {
             id: "gradient_bold", name: "Gradient Bold", cat: "Social", badge: "SOCIAL",
-            desc: "Clean 2-color social gradient via b/w Gradient Overlay + Tritone mapping.",
+            desc: "Clean 2-color social gradient: a real Ramp clipped inside the letters via alpha matte.",
+            heavy: true,
             apply: function (layer, o) {
                 var a = o._primaryIsDefault ? hexToRgb("#FF4696") : o.primary;
                 var b = o._secondaryIsDefault ? hexToRgb("#785AFF") : o.secondary;
-                ingColorOverlay(layer, [1, 1, 1], 100);          // white base for the ramp
-                ingGradientOverlay(layer, 45, 100, null);        // b/w diagonal ramp
-                ingTritone(layer, a, b, mix(a, b, 0.5));         // remap ramp to a->b
-                ingDropShadow(layer, shade(a, -0.5), 35, 6, 10, 120);
+                softShadowDup(layer, shade(a, -0.55), [6, 9], 12, 45);
+                textFill(layer, [1, 1, 1]);
+                gradientMatte(layer, a, b, 45);
             }
         },
         {
             id: "outline_bubble", name: "Outline Bubble", cat: "Retro", badge: "Y2K",
-            desc: "Hollow Y2K sticker outline: zero fill, thick rounded stroke, soft shadow.",
+            desc: "Hollow Y2K sticker outline: no fill, thick rounded stroke, soft drop shadow.",
             apply: function (layer, o) {
-                setFillOpacity(layer, 0);
                 var c = o._primaryIsDefault ? hexToRgb("#FF6EB4") : o.primary;
-                ingStroke(layer, c, 6 * o.intensity, 1, 100);
-                // a second, lighter offset stroke for a bubble outline read
-                ingOuterGlow(layer, shade(c, 0.4), 40, 8, 0);
-                ingDropShadow(layer, [0, 0, 0], 40, 8, 10, 120);
+                textNoFill(layer);
+                textStroke(layer, c, 7 * o.intensity, true);
+                glowFx(layer, 10, 1.0, 50, "Soft Edge");
+                dropShadowFx(layer, [0, 0, 0], 45, 135, 8, 10);
             }
         }
     ];
+
 
     function findStyle(id) {
         for (var i = 0; i < STYLES.length; i++) if (STYLES[i].id === id) return STYLES[i];
@@ -617,6 +518,7 @@
             alert("Select one or more TEXT layers, then click Apply.");
             return;
         }
+        ERRORS.length = 0; // fresh issue list for this run
         app.beginUndoGroup(SCRIPT_NAME + ": " + style.name);
         var ok = 0;
         try {
@@ -628,6 +530,31 @@
             app.endUndoGroup();
         }
         return ok;
+    }
+
+    // Build a ready-made demo composition (dark bg + sample text + the style).
+    // This is the in-AE "template" deliverable: a fully editable comp.
+    function buildDemoComp(styleId, opts) {
+        var style = findStyle(styleId);
+        if (!style) return null;
+        ERRORS.length = 0;
+        app.beginUndoGroup(SCRIPT_NAME + " Demo: " + style.name);
+        var comp = null;
+        try {
+            comp = app.project.items.addComp("TSPM · " + style.name, 1920, 1080, 1, 4, 30);
+            var bg = comp.layers.addSolid([0.07, 0.08, 0.10], "BG", 1920, 1080, 1);
+            var sample = (style.cat === "Metal") ? "ROYAL" : style.name.split(" ")[0].toUpperCase();
+            var tl = comp.layers.addText(sample);
+            var td = tl.property("ADBE Text Properties").property("ADBE Text Document").value;
+            td.fontSize = 320; td.justification = ParagraphJustification.CENTER_JUSTIFY;
+            try { td.font = "Arial-BoldMT"; } catch (e) {}
+            tl.property("ADBE Text Properties").property("ADBE Text Document").setValue(td);
+            tl.property("ADBE Transform Group").property("ADBE Position").setValue([960, 600]);
+            style.apply(tl, opts);
+            comp.openInViewer();
+        } catch (e) { logErr("buildDemoComp " + styleId, e); }
+        finally { app.endUndoGroup(); }
+        return comp;
     }
 
     // -------------------------------------------------------------------------
@@ -791,11 +718,22 @@
         var actions = pal.add("group"); actions.alignment = ["fill", "bottom"];
         var applyBtn = actions.add("button", undefined, "Apply to Selected");
         applyBtn.alignment = ["fill", "center"];
+        var demoBtn = actions.add("button", undefined, "Demo Comp");
+        demoBtn.preferredSize = [80, 26];
+        demoBtn.helpTip = "Build a ready-made demo composition for the selected style";
         var favBtn = actions.add("button", undefined, "☆ Fav");
-        favBtn.preferredSize = [60, 26];
+        favBtn.preferredSize = [56, 26];
+        var logBtn = actions.add("button", undefined, "⚠");
+        logBtn.preferredSize = [30, 26];
+        logBtn.helpTip = "Show the last run's issue log (copy it to me to debug)";
 
         var status = pal.add("statictext", undefined, "Ready. Select a text layer.");
         status.alignment = ["fill", "bottom"];
+
+        logBtn.onClick = function () {
+            alert(ERRORS.length ? ("Issues from last run:\n\n" + ERRORS.join("\n")) :
+                "No issues logged in the last run. 👍");
+        };
 
         // ---- state ----
         var selectedId = null;
@@ -904,7 +842,15 @@
             var info = getSelectedTextLayers();
             if (info.layers.length === 0) { status.text = "⚠ Select text layer(s) first."; return; }
             var n = applyStyle(selectedId, currentOpts());
-            status.text = "✔ Applied “" + findStyle(selectedId).name + "” to " + n + " layer(s).";
+            status.text = "✔ Applied “" + findStyle(selectedId).name + "” to " + n + " layer(s)." +
+                (ERRORS.length ? "  ⚠ " + ERRORS.length + " issue(s) — click ⚠" : "");
+        };
+
+        demoBtn.onClick = function () {
+            if (!selectedId) { status.text = "Select a style first."; return; }
+            var c = buildDemoComp(selectedId, currentOpts());
+            status.text = c ? ("🎬 Built demo comp “" + c.name + "”." +
+                (ERRORS.length ? "  ⚠ " + ERRORS.length + " issue(s)" : "")) : "⚠ Could not build demo.";
         };
 
         // initial

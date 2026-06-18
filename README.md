@@ -63,26 +63,28 @@ hand-tuned and applied inside a single undo group.
 
 ---
 
-## 🛠 How the styles are built (no plugins)
+## 🛠 How the styles are built (no plugins, no layer styles)
 
-Because custom gradient *stops* on layer styles aren't script-settable, the engine
-uses reliable, fully-scriptable techniques:
+After Effects does **not** allow scripts to add Layer Styles (`addProperty`
+fails), so the engine avoids them entirely and uses only reliably-scriptable
+techniques whose results keep the text's alpha intact:
 
-- **Metals** → AE's default black→white Gradient Overlay as a metallic ramp +
-  chisel **Bevel & Emboss** + **Satin** + bloom **Glow** effect.
-- **2-color gradients** → b/w Gradient Overlay remapped with the **Tritone**
-  effect (shadows = color A, highlights = color B) — a smooth gradient in any two
-  colors.
-- **Neon** → single-color Outer/Inner Glow layer styles + stacked **Glow** effects.
-- **3D** → real duplicated layers stepped & darkened behind a beveled face.
-- **Glitch** → duplicate layers split to R/B channels with `wiggle`/`posterizeTime`
+- **Metals (Chrome / Gold / Fluid)** → **Bevel Alpha** creates real 3D shading on
+  the letters, then **Tritone** remaps that shading to a metal palette (dark →
+  mid → highlight), plus a **Glow** bloom. Genuine metallic shading, no precomp.
+- **Gradient Bold** → a true directional **Ramp** on a solid, clipped *inside* the
+  letters via an alpha **track matte** (`setTrackMatte`, AE 2023+).
+- **Neon / Outline / Retro** → the text layer's own **fill & stroke**
+  (TextDocument) + stacked **Glow** effects.
+- **3D Extrude** → real duplicated layers stepped & darkened behind a beveled face.
+- **Glitch** → duplicate layers recolored to R/B with `wiggle` + `posterizeTime`
   expressions for stepped chromatic jitter.
-- **Fluid** → **Turbulent Displace** with a `time`-driven evolution expression.
 - **Kinetic** → a text **animator** (Position/Scale/Opacity/Blur) driven by a
   keyframed range-selector offset.
 
-All properties are set by **matchName**, so the script works regardless of AE's
-UI language.
+Everything is set by **matchName / effect index**, so the script is
+locale-independent. A **Demo Comp** button builds a ready-made editable comp per
+style, and an in-panel **⚠ issue log** surfaces any non-fatal errors.
 
 ---
 
