@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.3.0 — Holographic family (+10)
+- New "Holo" category with 10 holographic styles using a real 4-colour
+  iridescent gradient inside the letters (4-Color Gradient + alpha matte +
+  precompose) + glossy bevel + specular: Rainbow, Aurora, Oil Slick, Sunset,
+  Ocean, Candy, Chrome, Neon, Unicorn, and an animated Holo Live (rotating
+  iridescence + sweeping shine). Original Holographic untouched. 83 styles.
+
+
 ## 3.2.0 — Animated metals & gems (+10 Live) + Live category
 - specular()/metalSurface()/gemSurface() gain an animate mode: the shine sweeps
   across in a loop (expression-driven CC Light Sweep).

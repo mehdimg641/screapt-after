@@ -424,6 +424,41 @@ def r_holographic():
     return img
 
 
+def render_holo(word, cols, bgc=(14, 14, 20), rot=0.0, sweep_x=0.34):
+    """4-corner iridescent gradient inside the letters + glossy bevel + specular
+    (mirrors the JSX holoSurface 4-Color Gradient). `rot` rotates the iridescence
+    (for the animated Holo Live)."""
+    img = bg(bgc)
+    m, _ = mask_of(word, fit_size(word))
+    c1, c2, c3, c4 = [np.array(hx(c), float) for c in cols]
+    xx, yy = np.meshgrid(np.linspace(-0.5, 0.5, W), np.linspace(-0.5, 0.5, H))
+    ca, sa = math.cos(rot), math.sin(rot)
+    xr = np.clip(xx * ca - yy * sa + 0.5, 0, 1)[..., None]
+    yr = np.clip(xx * sa + yy * ca + 0.5, 0, 1)[..., None]
+    top = c1 * (1 - xr) + c2 * xr
+    bot = c3 * (1 - xr) + c4 * xr
+    grad = (top * (1 - yr) + bot * yr).astype(np.uint8)
+    face = Image.new("RGB", (W, H), (0, 0, 0)); face.paste(Image.fromarray(grad), (0, 0), m)
+    img = ImageChops.add(img, fill_rgb(m, tuple(int(v) for v in ((c1 + c2 + c3 + c4) / 4))).filter(ImageFilter.GaussianBlur(20)).point(lambda v: int(v * 0.5)))
+    face = emboss(face, m, 122, (255, 255, 255), 1.2, 4, shadow_color=(20, 12, 36))
+    img.paste(face, (0, 0), m)
+    img = spec_streak(img, m, x=sweep_x, alpha=0.6)
+    paste(img, (255, 255, 255), ring(m, 1))
+    return img
+
+
+def r_holo_rainbow():  return render_holo("RAINBOW", ["#FF6EC7", "#6EE7FF", "#B388FF", "#7CFFB2"])
+def r_holo_aurora():   return render_holo("AURORA", ["#5EF0B0", "#4FD0FF", "#9B7BFF", "#58E0C8"])
+def r_holo_oilslick(): return render_holo("OIL SLICK", ["#2A6CFF", "#C44FFF", "#2EE6C0", "#FF5FA8"], bgc=(8, 8, 14))
+def r_holo_sunset():   return render_holo("SUNSET", ["#FF7E5F", "#FF4FA3", "#B65FFF", "#FFC56E"])
+def r_holo_ocean():    return render_holo("OCEAN", ["#2EE6C0", "#2BA8FF", "#5EF0B0", "#7FE0FF"])
+def r_holo_candy():    return render_holo("CANDY", ["#FFB3DE", "#B3E5FF", "#D9B3FF", "#B3FFD9"])
+def r_holo_chrome():   return render_holo("CHROME", ["#DCE6F0", "#BFEAFF", "#E8D8FF", "#D8FFF0"])
+def r_holo_neon():     return render_holo("NEON", ["#FF2FD0", "#2FFFE0", "#B62FFF", "#2FFF6E"])
+def r_holo_unicorn():  return render_holo("UNICORN", ["#FFA8E6", "#A8C6FF", "#C6A8FF", "#A8FFD6"])
+def r_holo_live():     return render_holo("LIVE", ["#FF2F8F", "#2FE6FF", "#8F2FFF", "#2FFFC4"])
+
+
 def r_marble():
     img = bg((24, 24, 26))
     m, _ = mask_of("MARBLE", fit_size("MARBLE"))
@@ -571,6 +606,11 @@ STYLES = [
     ("lg_azure", "Glass Azure", r_lg_azure), ("lg_mint", "Glass Mint", r_lg_mint),
     ("lg_rose", "Glass Rose", r_lg_rose), ("lg_amber", "Glass Amber", r_lg_amber),
     ("lg_violet", "Glass Violet", r_lg_violet), ("lg_graphite", "Glass Graphite", r_lg_graphite),
+    ("holo_rainbow", "Holo Rainbow", r_holo_rainbow), ("holo_aurora", "Holo Aurora", r_holo_aurora),
+    ("holo_oilslick", "Holo Oil Slick", r_holo_oilslick), ("holo_sunset", "Holo Sunset", r_holo_sunset),
+    ("holo_ocean", "Holo Ocean", r_holo_ocean), ("holo_candy", "Holo Candy", r_holo_candy),
+    ("holo_chrome", "Holo Chrome", r_holo_chrome), ("holo_neon", "Holo Neon", r_holo_neon),
+    ("holo_unicorn", "Holo Unicorn", r_holo_unicorn), ("holo_live", "Holo Live", r_holo_live),
 ]
 
 
@@ -607,6 +647,9 @@ def main():
     glass_ids = ["lg_clear", "lg_regular", "lg_dark", "lg_frost", "lg_azure", "lg_mint",
                  "lg_rose", "lg_amber", "lg_violet", "lg_graphite"]
     sheet([rendered[idx[i]] for i in glass_ids], "/tmp/sheet_glass.png")
+    holo_ids = ["holo_rainbow", "holo_aurora", "holo_oilslick", "holo_sunset", "holo_ocean",
+                "holo_candy", "holo_chrome", "holo_neon", "holo_unicorn", "holo_live"]
+    sheet([rendered[idx[i]] for i in holo_ids], "/tmp/sheet_holo.png")
     print("done:", len(rendered), "renders ->", OUT)
 
 
