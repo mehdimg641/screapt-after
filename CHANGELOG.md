@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.3.0 — UI overhaul (scroll + previews fixed)
+- Replaced the non-scrolling icon grid with a native **scrollable ListBox** —
+  all 30 styles are now reachable.
+- Fixed empty thumbnails: ScriptUI does not scale images, so the big 360px
+  thumbs only showed a cropped corner in small buttons. Previews are now shown
+  full-size (240px) in a dedicated Preview pane; the list is clean text + badge.
+- Cleaner layout, double-click a list item to apply, clearer Options row, and a
+  helpful note when "Allow Scripts to Write Files" is off (needed for previews).
+
+
 ## 2.2.0 — Luxury pack II (+10 styles, 30 total)
 - Added 10 more premium styles: Ruby Gem, Amethyst Gem, Onyx Gloss, Pearl,
   Titanium, Liquid Gold, Frosted Glass, Holographic, Neon Gold, Navy & Gold.
