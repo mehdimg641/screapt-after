@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.5.0 — Real gradient INSIDE the letters (match the renders)
+- The big gap between the preview renders and the AE output was the metallic
+  GRADIENT: the renders fill the letters with a light->dark sheen, while the
+  script used a flat fill. Metals & gems now build a real vertical gradient
+  inside the glyphs (gradient solid + alpha track-matte + precompose) and then
+  add Bevel Alpha + Glow + Drop Shadow on top.
+- Gracefully falls back to the matted gradient solid if precompose is
+  unavailable, so the gradient still shows.
+- Applies to: Chrome, Gold, Platinum, Rose Gold, Champagne, Copper, Titanium,
+  Liquid Gold, Pearl, and all gems (Diamond/Emerald/Sapphire/Ruby/Amethyst).
+  Black & Gold, Royal Velvet and Onyx (already liked) are unchanged.
+
+
 ## 2.4.0 — Distinct, richer looks (Tritone removed from metals/gems)
 - Root cause of "all styles look the same": the Tritone tone-map was overriding
   each style's base colour, flattening every metal/gem into a similar grey-ish

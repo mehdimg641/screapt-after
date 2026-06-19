@@ -23,7 +23,7 @@
     // 0. Constants & small utilities
     // -------------------------------------------------------------------------
     var SCRIPT_NAME = "Text Style Pro Max";
-    var SCRIPT_VERSION = "2.4.0";
+    var SCRIPT_VERSION = "2.5.0";
 
     // Layer-style group on every layer.
     var LS_GROUP = "ADBE Layer Styles";
@@ -245,25 +245,61 @@
         return f;
     }
 
-    // Metallic surface that KEEPS the base fill colour as the identity (no
-    // Tritone — that was flattening every metal into the same grey tone).
-    // The caller sets textFill(base) first; here we add a bright bevel sheen,
-    // a darker contrast trim (stroke), a bloom and a drop shadow.
-    // Signature kept stable: (layer, o, trimCol, midCol[unused], hiEdge, edge, glowR, warm)
-    function metalSurface(layer, o, shadowCol, midCol, hiCol, edge, glowR, warmGlow) {
-        bevelAlpha(layer, edge * (0.7 + 0.5 * o.intensity), -55, hiCol || [1, 1, 1], 0.9 * o.intensity);
-        textStroke(layer, shadowCol, 2.5, false);
-        glowFx(layer, glowR * o.intensity, 1.0, 60, "Metal Bloom");
-        dropShadowFx(layer, warmGlow ? [0.05, 0.02, 0] : [0, 0, 0], 62, 135, 9 + edge, 15);
+    function findLayerBySource(comp, src) {
+        for (var i = 1; i <= comp.numLayers; i++) {
+            try { if (comp.layer(i).source === src) return comp.layer(i); } catch (e) {}
+        }
+        return null;
     }
 
-    // Gemstone surface: faceted bevel + bright edge + strong coloured glow.
+    // Build a REAL vertical gradient INSIDE the letters (light top -> dark bottom)
+    // and return a single precomp layer carrying the text-shaped alpha, so bevel /
+    // glow / shadow can be added on top. This is what makes the metal look like
+    // the reference renders instead of a flat fill. Falls back to the matted
+    // gradient solid if precompose is unavailable.
+    function gradientInText(layer, darkCol, lightCol, angleDeg) {
+        var comp = layer.containingComp;
+        var sol;
+        try { sol = comp.layers.addSolid([1, 1, 1], layer.name + " fill", comp.width, comp.height, comp.pixelAspect, comp.duration); }
+        catch (e) { logErr("addSolid(grad)", e); return layer; }
+        sol.moveBefore(layer);
+        var ramp = addEffect(sol, "ADBE Ramp", "Metal Ramp");
+        var w = comp.width, h = comp.height, rad = (angleDeg == null ? 90 : angleDeg) * Math.PI / 180;
+        var cx = w / 2, cy = h / 2, len = h * 0.5;
+        setFx(ramp, 1, [cx - Math.cos(rad) * len, cy - Math.sin(rad) * len]); // top
+        setFx(ramp, 2, lightCol);
+        setFx(ramp, 3, [cx + Math.cos(rad) * len, cy + Math.sin(rad) * len]); // bottom
+        setFx(ramp, 4, darkCol);
+        setFx(ramp, 5, 1);
+        if (!setAlphaMatte(sol, layer)) return sol;
+        var indices = [sol.index, layer.index];
+        indices.sort(function (a, b) { return a - b; });
+        try {
+            var pre = comp.layers.precompose(indices, layer.name + " styled", false);
+            var pl = findLayerBySource(comp, pre);
+            if (pl) return pl;
+        } catch (e) { logErr("precompose", e); }
+        return sol;
+    }
+
+    // Metallic surface: real gradient sheen in the letters + bright bevel + bloom.
+    // Signature stable: (layer, o, darkCol, midCol[unused], lightCol, edge, glowR, warm)
+    function metalSurface(layer, o, shadowCol, midCol, hiCol, edge, glowR, warmGlow) {
+        var pl = gradientInText(layer, shadowCol, hiCol || [1, 1, 1], 90);
+        bevelAlpha(pl, edge * (0.7 + 0.5 * o.intensity), -55, hiCol || [1, 1, 1], 0.85 * o.intensity);
+        glowFx(pl, glowR * o.intensity, warmGlow ? 1.0 : 0.9, 60, "Metal Bloom");
+        dropShadowFx(pl, warmGlow ? [0.05, 0.02, 0] : [0, 0, 0], 62, 135, 9 + edge, 15);
+        return pl;
+    }
+
+    // Gemstone surface: gradient body + faceted bevel + strong coloured glow.
     function gemSurface(layer, o, base, edgeCol, glowR) {
-        bevelAlpha(layer, 7 * (0.7 + 0.5 * o.intensity), -55, edgeCol, 0.95 * o.intensity);
-        textStroke(layer, edgeCol, 2, false);
-        glowFx(layer, glowR * o.intensity, 1.7, 46, "Gem Glow");
-        glowFx(layer, 12, 1.2, 62, "Facet Shine");
-        dropShadowFx(layer, shade(base, -0.6), 55, 135, 10, 15);
+        var pl = gradientInText(layer, shade(base, -0.5), shade(base, 0.55), 90);
+        bevelAlpha(pl, 7 * (0.7 + 0.5 * o.intensity), -55, edgeCol, 1.0 * o.intensity);
+        glowFx(pl, glowR * o.intensity, 1.7, 46, "Gem Glow");
+        glowFx(pl, 12, 1.2, 62, "Facet Shine");
+        dropShadowFx(pl, shade(base, -0.6), 55, 135, 11, 15);
+        return pl;
     }
 
     // ---- Directional gradient INSIDE text via Ramp solid + alpha matte ----
@@ -395,29 +431,23 @@
             id: "chrome_y2k", name: "Chrome Y2K", cat: "Metal", badge: "NEW",
             desc: "Liquid metal / mirror chrome — bevel shading remapped to a steel palette + bloom.",
             apply: function (layer, o) {
-                textFill(layer, [0.85, 0.88, 0.95]);
                 var tint = o._primaryIsDefault ? [0.62, 0.68, 0.80] : o.primary;
                 metalSurface(layer, o,
-                    shade(tint, -0.78),                 // shadows: dark steel
-                    mix(tint, [0.85, 0.9, 1], 0.35),    // mids
-                    [1, 1, 1],                          // highlights: white
+                    shade(tint, -0.62),                 // dark steel (gradient bottom)
+                    mix(tint, [0.85, 0.9, 1], 0.35),    // (unused)
+                    [1, 1, 1],                          // bright (gradient top)
                     6, 22, false);
-                textStroke(layer, shade(tint, -0.5), 2, false);
             }
         },
         {
             id: "gold_luxury", name: "Gold Luxury", cat: "Metal", badge: "HOT",
             desc: "Royal gold foil — warm bevel tonemap, golden bloom and soft drop shadow.",
             apply: function (layer, o) {
-                var g = o._primaryIsDefault ? hexToRgb("#E6B450") : o.primary;
-                textFill(layer, g);
                 metalSurface(layer, o,
-                    hexToRgb("#5A3D0C"),   // shadows
-                    hexToRgb("#C99A3A"),   // mids
-                    hexToRgb("#FFF4C8"),   // highlights
-                    6, 26, true);
-                glowFx(layer, 30 * o.intensity, 1.0, 55, "Gold Sheen");
-                textStroke(layer, hexToRgb("#7A521A"), 2, false);
+                    o._primaryIsDefault ? hexToRgb("#7A521A") : shade(o.primary, -0.45), // dark gold (bottom)
+                    hexToRgb("#C99A3A"),   // (unused)
+                    o._primaryIsDefault ? hexToRgb("#FFF1B8") : shade(o.primary, 0.6),   // bright gold (top)
+                    6, 28, true);
             }
         },
         {
@@ -545,20 +575,22 @@
             id: "platinum", name: "Platinum", cat: "Luxe", badge: "LUXE",
             desc: "Cool bright platinum — clean, expensive silver with a soft white bloom.",
             apply: function (layer, o) {
-                var t = o._primaryIsDefault ? hexToRgb("#D8DEE8") : o.primary;
-                textFill(layer, [0.9, 0.92, 0.96]);
-                metalSurface(layer, o, hexToRgb("#5E6878"), mix(t, [0.86, 0.9, 0.97], 0.4), [1, 1, 1], 5, 20, false);
-                textStroke(layer, hexToRgb("#7E8898"), 2, false);
+                metalSurface(layer, o,
+                    o._primaryIsDefault ? hexToRgb("#7E8898") : shade(o.primary, -0.45),
+                    [1, 1, 1],
+                    o._primaryIsDefault ? hexToRgb("#FFFFFF") : shade(o.primary, 0.55),
+                    5, 20, false);
             }
         },
         {
             id: "rose_gold", name: "Rose Gold", cat: "Luxe", badge: "LUXE",
             desc: "Soft pink-gold metal — warm, premium and elegant.",
             apply: function (layer, o) {
-                var g = o._primaryIsDefault ? hexToRgb("#E8B4A0") : o.primary;
-                textFill(layer, g);
-                metalSurface(layer, o, hexToRgb("#6E3B30"), hexToRgb("#E0A38E"), hexToRgb("#FFE8DE"), 6, 24, true);
-                textStroke(layer, hexToRgb("#8A4A3A"), 2, false);
+                metalSurface(layer, o,
+                    o._primaryIsDefault ? hexToRgb("#8A4A3A") : shade(o.primary, -0.45),
+                    [1, 1, 1],
+                    o._primaryIsDefault ? hexToRgb("#FFE8DE") : shade(o.primary, 0.55),
+                    6, 24, true);
             }
         },
         {
@@ -585,10 +617,11 @@
             id: "champagne", name: "Champagne", cat: "Luxe", badge: "LUXE",
             desc: "Pale warm champagne-gold — understated, classy metallic.",
             apply: function (layer, o) {
-                var g = o._primaryIsDefault ? hexToRgb("#EFE2BE") : o.primary;
-                textFill(layer, g);
-                metalSurface(layer, o, hexToRgb("#8A7A4E"), hexToRgb("#E5D6A8"), hexToRgb("#FFFDF2"), 5, 18, true);
-                textStroke(layer, hexToRgb("#A8965E"), 1.5, false);
+                metalSurface(layer, o,
+                    o._primaryIsDefault ? hexToRgb("#A8965E") : shade(o.primary, -0.4),
+                    [1, 1, 1],
+                    o._primaryIsDefault ? hexToRgb("#FFFDF2") : shade(o.primary, 0.6),
+                    5, 18, true);
             }
         },
         {
@@ -626,10 +659,11 @@
             id: "copper_bronze", name: "Copper Bronze", cat: "Luxe", badge: "LUXE",
             desc: "Warm copper / bronze metal — rich antique luxury.",
             apply: function (layer, o) {
-                var g = o._primaryIsDefault ? hexToRgb("#B5742E") : o.primary;
-                textFill(layer, g);
-                metalSurface(layer, o, hexToRgb("#3F2008"), hexToRgb("#B5742E"), hexToRgb("#FFD9A0"), 6, 22, true);
-                textStroke(layer, hexToRgb("#5E3A12"), 2, false);
+                metalSurface(layer, o,
+                    o._primaryIsDefault ? hexToRgb("#5E3A12") : shade(o.primary, -0.5),
+                    [1, 1, 1],
+                    o._primaryIsDefault ? hexToRgb("#FFD9A0") : shade(o.primary, 0.55),
+                    6, 22, true);
             }
         },
         {
@@ -679,32 +713,33 @@
             id: "pearl", name: "Pearl", cat: "Luxe", badge: "LUXE",
             desc: "Iridescent cream pearl with a cool-warm lustre — delicate and rich.",
             apply: function (layer, o) {
-                textFill(layer, o._primaryIsDefault ? hexToRgb("#F4EEE6") : o.primary);
-                bevelAlpha(layer, 6 * o.intensity, -55, [1, 1, 1], 0.6);
-                textStroke(layer, hexToRgb("#C8B8D6"), 2, false);
-                glowFx(layer, 20 * o.intensity, 0.9, 58, "Pearl Sheen");
-                dropShadowFx(layer, hexToRgb("#2A2630"), 45, 135, 8, 14);
+                metalSurface(layer, o,
+                    o._primaryIsDefault ? hexToRgb("#CDBFD8") : shade(o.primary, -0.25),
+                    [1, 1, 1],
+                    o._primaryIsDefault ? hexToRgb("#FFFBF6") : shade(o.primary, 0.6),
+                    5, 18, false);
             }
         },
         {
             id: "titanium", name: "Titanium", cat: "Luxe", badge: "LUXE",
             desc: "Dark gunmetal titanium — industrial, modern, expensive.",
             apply: function (layer, o) {
-                var t = o._primaryIsDefault ? hexToRgb("#5A6068") : o.primary;
-                textFill(layer, t);
-                metalSurface(layer, o, hexToRgb("#20242A"), t, hexToRgb("#C4CAD2"), 6, 18, false);
-                textStroke(layer, hexToRgb("#2A2E34"), 2, false);
+                metalSurface(layer, o,
+                    o._primaryIsDefault ? hexToRgb("#20242A") : shade(o.primary, -0.5),
+                    [1, 1, 1],
+                    o._primaryIsDefault ? hexToRgb("#C4CAD2") : shade(o.primary, 0.5),
+                    6, 18, false);
             }
         },
         {
             id: "liquid_gold", name: "Liquid Gold", cat: "Luxe", badge: "LUXE",
             desc: "Molten, high-contrast gold with a strong bloom — dramatic luxury.",
             apply: function (layer, o) {
-                var g = o._primaryIsDefault ? hexToRgb("#F0C04A") : o.primary;
-                textFill(layer, g);
-                metalSurface(layer, o, hexToRgb("#6A3D02"), g, hexToRgb("#FFFBE0"), 7, 36, true);
-                glowFx(layer, 40 * o.intensity, 1.2, 48, "Molten Bloom");
-                textStroke(layer, hexToRgb("#7A5212"), 2, false);
+                metalSurface(layer, o,
+                    o._primaryIsDefault ? hexToRgb("#6A3D02") : shade(o.primary, -0.55),
+                    [1, 1, 1],
+                    o._primaryIsDefault ? hexToRgb("#FFFBE0") : shade(o.primary, 0.6),
+                    7, 40, true);
             }
         },
         {
