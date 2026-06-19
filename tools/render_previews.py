@@ -251,7 +251,33 @@ def r_onyx_classic():
     return img
 
 
+def _shade(c, f):
+    if f >= 0:
+        return tuple(int(c[i] + (255 - c[i]) * f) for i in range(3))
+    return tuple(int(c[i] * (1 + f)) for i in range(3))
+
+
+def render_onyx_accent(word, accent_hex):
+    """Same logic as the JSX onyxSurface(accent) so render == AE."""
+    a = hx(accent_hex)
+    base_dark = _shade(a, -0.80)
+    sheen = _shade(a, 0.45)
+    ring_c = _shade(a, -0.4)
+    bgc = tuple(int(x * 0.4) for x in base_dark)
+    return render_onyx(word, base_dark, sheen, ring_c, a, bgc)
+
+
 def r_onyx():          return render_onyx("ONYX", (14, 14, 16), (205, 205, 214), hx("#26262C"))
+def r_teal_aqua():      return render_onyx_accent("AQUA", "#1FD0C0")
+def r_teal_turquoise(): return render_onyx_accent("TURQUOISE", "#1AB6A0")
+def r_teal_cyan():      return render_onyx_accent("CYAN", "#18C8E8")
+def r_teal_mint():      return render_onyx_accent("MINT", "#58E0A8")
+def r_teal_lagoon():    return render_onyx_accent("LAGOON", "#1E9FB8")
+def r_teal_seafoam():   return render_onyx_accent("SEAFOAM", "#84E0C8")
+def r_teal_petrol():    return render_onyx_accent("PETROL", "#0E8A92")
+def r_teal_tiffany():   return render_onyx_accent("TIFFANY", "#2EC4C0")
+def r_teal_spearmint(): return render_onyx_accent("SPEARMINT", "#34D094")
+def r_teal_ice():       return render_onyx_accent("ICE", "#6FE8E8")
 def r_onyx_sapphire(): return render_onyx("SAPPHIRE", (8, 16, 34), (110, 160, 235), hx("#1E3257"), (50, 100, 210), (5, 8, 18))
 def r_onyx_emerald():  return render_onyx("EMERALD", (6, 22, 15), (95, 224, 160), hx("#16402C"), (30, 170, 110), (4, 14, 9))
 def r_onyx_ruby():     return render_onyx("RUBY", (28, 8, 12), (255, 120, 140), hx("#551823"), (210, 55, 85), (16, 4, 7))
@@ -481,6 +507,11 @@ STYLES = [
     ("onyx_sapphire", "Onyx Sapphire", r_onyx_sapphire), ("onyx_emerald", "Onyx Emerald", r_onyx_emerald),
     ("onyx_ruby", "Onyx Ruby", r_onyx_ruby), ("onyx_amethyst", "Onyx Amethyst", r_onyx_amethyst),
     ("onyx_gold", "Onyx Gold", r_onyx_gold), ("onyx_teal", "Onyx Teal", r_onyx_teal),
+    ("teal_aqua", "Aqua Gloss", r_teal_aqua), ("teal_turquoise", "Turquoise Gloss", r_teal_turquoise),
+    ("teal_cyan", "Cyan Gloss", r_teal_cyan), ("teal_mint", "Mint Gloss", r_teal_mint),
+    ("teal_lagoon", "Lagoon Gloss", r_teal_lagoon), ("teal_seafoam", "Seafoam Gloss", r_teal_seafoam),
+    ("teal_petrol", "Petrol Gloss", r_teal_petrol), ("teal_tiffany", "Tiffany Gloss", r_teal_tiffany),
+    ("teal_spearmint", "Spearmint Gloss", r_teal_spearmint), ("teal_ice", "Ice Gloss", r_teal_ice),
 ]
 
 
@@ -511,6 +542,9 @@ def main():
     idx = dict((s[0], i) for i, s in enumerate(STYLES))
     onyx_ids = ["onyx_classic", "onyx", "onyx_sapphire", "onyx_emerald", "onyx_ruby", "onyx_amethyst", "onyx_gold", "onyx_teal"]
     sheet([rendered[idx[i]] for i in onyx_ids], "/tmp/sheet_onyx.png")
+    teal_ids = ["onyx_teal", "teal_aqua", "teal_turquoise", "teal_cyan", "teal_mint", "teal_lagoon",
+                "teal_seafoam", "teal_petrol", "teal_tiffany", "teal_spearmint", "teal_ice"]
+    sheet([rendered[idx[i]] for i in teal_ids], "/tmp/sheet_teal.png")
     print("done:", len(rendered), "renders ->", OUT)
 
 

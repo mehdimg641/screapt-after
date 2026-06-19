@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.9.0 — Teal spectrum family (+10)
+- New "Teal" category with 10 premium glossy-lacquer styles across the teal
+  spectrum: Aqua, Turquoise, Cyan, Mint, Lagoon, Seafoam, Petrol, Tiffany,
+  Spearmint, Ice. Built on the loved onyxSurface look. Original Onyx Teal is
+  unchanged. Library is now 47 styles.
+
+
 ## 2.8.1 — Restore the original Onyx
 - Brought back the exact original Onyx recipe as "Onyx Gloss" (Classic) alongside
   the new specular "Onyx Black". Onyx family is now 8 (Classic + Black + Sapphire,
