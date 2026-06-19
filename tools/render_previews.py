@@ -240,6 +240,17 @@ def render_onyx(word, base_dark, sheen_col, ring_col, glow_col=None, bgc=(6, 6, 
     return img
 
 
+def r_onyx_classic():
+    # the original recipe: glossy black, white steel sheen, no specular sweep
+    img = bg((6, 6, 8))
+    m, _ = mask_of("ONYX", fit_size("ONYX"))
+    face = sheen(fill_rgb(m, (12, 12, 14)), m, 1.9, 0.5)
+    face = emboss(face, m, 122, (200, 200, 210), 0.9, 3)
+    img.paste(face, (0, 0), m)
+    paste(img, hx("#26262C"), ring(m, 2))
+    return img
+
+
 def r_onyx():          return render_onyx("ONYX", (14, 14, 16), (205, 205, 214), hx("#26262C"))
 def r_onyx_sapphire(): return render_onyx("SAPPHIRE", (8, 16, 34), (110, 160, 235), hx("#1E3257"), (50, 100, 210), (5, 8, 18))
 def r_onyx_emerald():  return render_onyx("EMERALD", (6, 22, 15), (95, 224, 160), hx("#16402C"), (30, 170, 110), (4, 14, 9))
@@ -463,7 +474,7 @@ STYLES = [
     ("sapphire", "Sapphire Gem", r_sapphire), ("royal_velvet", "Royal Velvet", r_royal_velvet),
     ("copper_bronze", "Copper Bronze", r_copper), ("marble_gold", "Marble Gold", r_marble),
     ("ruby", "Ruby Gem", r_ruby), ("amethyst", "Amethyst Gem", r_amethyst),
-    ("onyx", "Onyx Black", r_onyx), ("pearl", "Pearl", r_pearl),
+    ("onyx_classic", "Onyx Gloss", r_onyx_classic), ("onyx", "Onyx Black", r_onyx), ("pearl", "Pearl", r_pearl),
     ("titanium", "Titanium", r_titanium), ("liquid_gold", "Liquid Gold", r_liquidgold),
     ("frosted_glass", "Liquid Glass", r_frosted), ("holographic", "Holographic", r_holographic),
     ("neon_gold", "Neon Gold", r_neon_gold), ("navy_gold", "Navy & Gold", r_navy_gold),
@@ -498,7 +509,7 @@ def main():
     sheet(rendered[20:30], "/tmp/sheet_luxe2.png")
     # Onyx family sheet: original Onyx Black + the 6 colour variants
     idx = dict((s[0], i) for i, s in enumerate(STYLES))
-    onyx_ids = ["onyx", "onyx_sapphire", "onyx_emerald", "onyx_ruby", "onyx_amethyst", "onyx_gold", "onyx_teal"]
+    onyx_ids = ["onyx_classic", "onyx", "onyx_sapphire", "onyx_emerald", "onyx_ruby", "onyx_amethyst", "onyx_gold", "onyx_teal"]
     sheet([rendered[idx[i]] for i in onyx_ids], "/tmp/sheet_onyx.png")
     print("done:", len(rendered), "renders ->", OUT)
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.8.1 — Restore the original Onyx
+- Brought back the exact original Onyx recipe as "Onyx Gloss" (Classic) alongside
+  the new specular "Onyx Black". Onyx family is now 8 (Classic + Black + Sapphire,
+  Emerald, Ruby, Amethyst, Gold, Teal). Library is 37 styles.
+
+
 ## 2.8.0 — Onyx family (+6 premium colour variants)
 - Added an "Onyx" category and 6 new premium glossy-lacquer variants of the
   loved Onyx look: Sapphire, Emerald, Ruby, Amethyst, Gold (black-gold) and Teal.
