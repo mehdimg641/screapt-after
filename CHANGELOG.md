@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.5.0 — Liquid Metal + Fire & Smoke families (+20)
+- Liquid Metal (10, animated): flowing mercury surface (Turbulent Displace) +
+  moving reflection (animated specular). Silver, Gold, Copper, Rose Gold,
+  Platinum, Black Mercury, Bronze, Steel Blue, Gunmetal, Emerald Metal.
+- Fire (5, animated): hot gradient + Roughen-Edges flame edges + flicker + fiery
+  bloom. Classic, Ember, Blue, Green, Purple.
+- Smoke (5, animated): wispy drifting semi-transparent text (Turbulent Displace +
+  blur + rise). White, Dark, Blue, Mystic, Ember.
+- New Liquid / Fire / Smoke categories. Library is now 112 styles.
+
+
 ## 3.4.0 — Holo Live family (+9 animated)
 - Added animated Live versions of every holographic palette: Rainbow, Aurora,
   Oil Slick, Sunset, Ocean, Candy, Chrome, Neon, Unicorn (rotating iridescence +

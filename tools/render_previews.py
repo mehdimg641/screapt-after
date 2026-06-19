@@ -577,6 +577,110 @@ def r_kinetic():
     return img
 
 
+# ---------------------------------------------------------------------------
+# Liquid Metal / Fire / Smoke
+# ---------------------------------------------------------------------------
+def render_liquidmetal(word, low, high, warm=False, bgc=(16, 17, 21), phase=0.0, sweep_x=0.34):
+    img = bg(bgc)
+    m, _ = mask_of(word, fit_size(word))
+    arr = np.array(m); out = np.zeros_like(arr)
+    for yy in range(H):
+        out[yy] = np.roll(arr[yy], int(6 * math.sin(yy / 12.0 + phase)))
+    wob = Image.fromarray(out)
+    lo, hi = np.array(hx(low), float), np.array(hx(high), float)
+    ys = np.linspace(1, 0, H)[:, None, None]
+    grad = ((hi * ys + lo * (1 - ys)) * np.ones((H, W, 1))).astype(np.uint8)
+    sh = fill_rgb(wob, (0, 0, 0)).filter(ImageFilter.GaussianBlur(12))
+    img = ImageChops.subtract(img, ImageChops.offset(sh, 6, 9).point(lambda v: int(v * 0.5)))
+    if warm:
+        img = ImageChops.add(img, glow_layer(wob, hx(high), 22, 0.6))
+    face = Image.new("RGB", (W, H), (0, 0, 0)); face.paste(Image.fromarray(grad), (0, 0), wob)
+    face = emboss(face, wob, 122, (255, 245, 210) if warm else (255, 255, 255), 1.3, 4,
+                  shadow_color=tuple(int(c * 0.3) for c in hx(low)))
+    img.paste(face, (0, 0), wob)
+    img = spec_streak(img, wob, x=sweep_x, alpha=0.6)
+    paste(img, (255, 255, 255), ring(wob, 1))
+    return img
+
+
+def _colorize_L(L, col):
+    out = Image.new("RGB", (W, H), (0, 0, 0))
+    out.paste(Image.new("RGB", (W, H), col), (0, 0), L)
+    return out
+
+
+def render_fire(word, low, high, bgc=(10, 6, 4), t=0.0):
+    img = bg(bgc, vignette=False)
+    m, _ = mask_of(word, fit_size(word))
+    lo, hi = hx(low), hx(high)
+    # flame tongues rising above the letters
+    fl = Image.new("L", (W, H), 0); arr = np.array(m)
+    for i in range(1, 9):
+        out = np.zeros_like(arr)
+        for yy in range(H):
+            out[yy] = np.roll(arr[yy], int(11 * math.sin(yy / 16.0 + i * 0.8 + t * 6)))
+        s = ImageChops.offset(Image.fromarray(out), 0, -i * 15).filter(ImageFilter.GaussianBlur(4 + i))
+        fl = ImageChops.add(fl, s.point(lambda v, i=i: int(v * max(0, 1.0 - i * 0.11))))
+    fa = np.array(fl).astype(float) / 255
+    flames = np.dstack([np.clip(fa * 2.2, 0, 1) * 255,
+                        np.clip(fa * 1.7 - 0.18, 0, 1) * 255,
+                        np.clip(fa * 0.7 - 0.45, 0, 1) * 255]).astype(np.uint8)
+    img = ImageChops.add(img, Image.fromarray(flames))
+    # fiery bloom
+    img = ImageChops.add(img, glow_layer(m, hi, 40, 0.9, passes=2))
+    img = ImageChops.add(img, glow_layer(m, (255, 120, 20), 24, 0.8, passes=1))
+    # hot gradient body
+    ys = np.linspace(1, 0, H)[:, None, None]
+    grad = ((np.array(hi) * ys + np.array(lo) * (1 - ys)) * np.ones((H, W, 1))).astype(np.uint8)
+    face = Image.new("RGB", (W, H), (0, 0, 0)); face.paste(Image.fromarray(grad), (0, 0), m)
+    img.paste(face, (0, 0), m)
+    # white-hot core
+    core = m.point(lambda v: 255 if v > 200 else 0)
+    img = ImageChops.add(img, _colorize_L(core, (255, 240, 190)).filter(ImageFilter.GaussianBlur(1)))
+    return img
+
+
+def render_smoke(word, col, bgc=(14, 14, 16), t=0.0):
+    img = bg(bgc)
+    m, _ = mask_of(word, fit_size(word))
+    c = hx(col)
+    sm = Image.new("L", (W, H), 0); arr = np.array(m)
+    for i in range(1, 11):
+        out = np.zeros_like(arr)
+        for yy in range(H):
+            out[yy] = np.roll(arr[yy], int(14 * math.sin(yy / 22.0 + i * 0.7 + t * 4)))
+        s = ImageChops.offset(Image.fromarray(out), 0, -i * 10 - int(t * 20)).filter(ImageFilter.GaussianBlur(6 + i * 1.6))
+        sm = ImageChops.add(sm, s.point(lambda v, i=i: int(v * max(0, 0.8 - i * 0.07))))
+    img = ImageChops.add(img, _colorize_L(sm, c))
+    body = _colorize_L(m, c).filter(ImageFilter.GaussianBlur(3))
+    img = Image.blend(img, ImageChops.add(img, body), 0.7)
+    return img
+
+
+def r_lm_silver():   return render_liquidmetal("SILVER", "#4A5260", "#FFFFFF", False)
+def r_lm_gold():     return render_liquidmetal("GOLD", "#6A4A0E", "#FFF3C0", True, bgc=(18, 14, 6))
+def r_lm_copper():   return render_liquidmetal("COPPER", "#4A2509", "#FFD3A0", True, bgc=(18, 11, 6))
+def r_lm_rose():     return render_liquidmetal("ROSE", "#6E3B30", "#FFE3D8", True, bgc=(20, 13, 12))
+def r_lm_platinum(): return render_liquidmetal("PLATINUM", "#5E6878", "#FFFFFF", False)
+def r_lm_black():    return render_liquidmetal("MERCURY", "#0A0C12", "#8A93A6", False, bgc=(6, 6, 9))
+def r_lm_bronze():   return render_liquidmetal("BRONZE", "#3A2608", "#F0C878", True, bgc=(16, 12, 6))
+def r_lm_steel():    return render_liquidmetal("STEEL", "#1E3050", "#BFE0FF", False, bgc=(8, 11, 18))
+def r_lm_gunmetal(): return render_liquidmetal("GUNMETAL", "#20242A", "#B8C0CC", False)
+def r_lm_emerald():  return render_liquidmetal("EMERALD", "#06402B", "#9FFFD0", False, bgc=(6, 14, 11))
+
+def r_fire_classic(): return render_fire("FIRE", "#6A1500", "#FFE84F")
+def r_fire_ember():   return render_fire("EMBER", "#3A0800", "#FF7A2E")
+def r_fire_blue():    return render_fire("FROST", "#001A4A", "#9FE8FF", bgc=(4, 6, 12))
+def r_fire_green():   return render_fire("TOXIC", "#003311", "#9FFF8F", bgc=(4, 10, 6))
+def r_fire_purple():  return render_fire("ARCANE", "#2A0040", "#E89FFF", bgc=(8, 4, 12))
+
+def r_smoke_white():  return render_smoke("SMOKE", "#C8CCD2")
+def r_smoke_dark():   return render_smoke("SHADOW", "#7A8088", bgc=(8, 8, 10))
+def r_smoke_blue():   return render_smoke("MIST", "#9FB6D8", bgc=(10, 12, 18))
+def r_smoke_purple(): return render_smoke("MYSTIC", "#B89FD8", bgc=(12, 8, 16))
+def r_smoke_ember():  return render_smoke("ASH", "#A88A7A", bgc=(14, 10, 8))
+
+
 STYLES = [
     ("chrome_y2k", "Chrome Y2K", r_chrome), ("gold_luxury", "Gold Luxury", r_gold),
     ("variable_kinetic", "Variable Kinetic", r_kinetic), ("neon_cyberpunk", "Neon Cyberpunk", r_neon),
@@ -611,6 +715,17 @@ STYLES = [
     ("holo_ocean", "Holo Ocean", r_holo_ocean), ("holo_candy", "Holo Candy", r_holo_candy),
     ("holo_chrome", "Holo Chrome", r_holo_chrome), ("holo_neon", "Holo Neon", r_holo_neon),
     ("holo_unicorn", "Holo Unicorn", r_holo_unicorn), ("holo_live", "Holo Live", r_holo_live),
+    ("lm_silver", "Liquid Silver", r_lm_silver), ("lm_gold", "Liquid Gold", r_lm_gold),
+    ("lm_copper", "Liquid Copper", r_lm_copper), ("lm_rose", "Liquid Rose Gold", r_lm_rose),
+    ("lm_platinum", "Liquid Platinum", r_lm_platinum), ("lm_black", "Liquid Black Mercury", r_lm_black),
+    ("lm_bronze", "Liquid Bronze", r_lm_bronze), ("lm_steel", "Liquid Steel Blue", r_lm_steel),
+    ("lm_gunmetal", "Liquid Gunmetal", r_lm_gunmetal), ("lm_emerald", "Liquid Emerald Metal", r_lm_emerald),
+    ("fire_classic", "Fire", r_fire_classic), ("fire_ember", "Fire Ember", r_fire_ember),
+    ("fire_blue", "Fire Blue", r_fire_blue), ("fire_green", "Fire Green", r_fire_green),
+    ("fire_purple", "Fire Purple", r_fire_purple),
+    ("smoke_white", "Smoke", r_smoke_white), ("smoke_dark", "Smoke Dark", r_smoke_dark),
+    ("smoke_blue", "Smoke Blue", r_smoke_blue), ("smoke_purple", "Smoke Mystic", r_smoke_purple),
+    ("smoke_ember", "Smoke Ember", r_smoke_ember),
 ]
 
 
@@ -650,6 +765,12 @@ def main():
     holo_ids = ["holo_rainbow", "holo_aurora", "holo_oilslick", "holo_sunset", "holo_ocean",
                 "holo_candy", "holo_chrome", "holo_neon", "holo_unicorn", "holo_live"]
     sheet([rendered[idx[i]] for i in holo_ids], "/tmp/sheet_holo.png")
+    lm_ids = ["lm_silver", "lm_gold", "lm_copper", "lm_rose", "lm_platinum",
+              "lm_black", "lm_bronze", "lm_steel", "lm_gunmetal", "lm_emerald"]
+    sheet([rendered[idx[i]] for i in lm_ids], "/tmp/sheet_liquidmetal.png")
+    fs_ids = ["fire_classic", "fire_ember", "fire_blue", "fire_green", "fire_purple",
+              "smoke_white", "smoke_dark", "smoke_blue", "smoke_purple", "smoke_ember"]
+    sheet([rendered[idx[i]] for i in fs_ids], "/tmp/sheet_firesmoke.png")
     print("done:", len(rendered), "renders ->", OUT)
 
 
