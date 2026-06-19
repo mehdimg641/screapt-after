@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.4.0 — Holo Live family (+9 animated)
+- Added animated Live versions of every holographic palette: Rainbow, Aurora,
+  Oil Slick, Sunset, Ocean, Candy, Chrome, Neon, Unicorn (rotating iridescence +
+  sweeping shine). Static Holo styles untouched. Renamed the original animated
+  one to "Holo Cyber Live". Library is now 92 styles.
+
+
 ## 3.3.0 — Holographic family (+10)
 - New "Holo" category with 10 holographic styles using a real 4-colour
   iridescent gradient inside the letters (4-Color Gradient + alpha matte +
