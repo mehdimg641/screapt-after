@@ -475,6 +475,57 @@ def r_frosted():
     return img
 
 
+def render_glass(word, tint=(205, 228, 248), dark=False, bgc=(24, 32, 46),
+                 blobs=((150, 90, 130, (70, 110, 160)), (430, 210, 150, (110, 80, 150)), (300, 60, 110, (60, 140, 170)))):
+    """Apple-style liquid glass: refracted/blurred backdrop + tinted translucent
+    body + bright edge lensing + specular sweep. Mirrors the JSX liquidGlass."""
+    bgimg = bg(bgc)
+    d = ImageDraw.Draw(bgimg)
+    for (cx, cy, r, col) in blobs:
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=col)
+    bgimg = bgimg.filter(ImageFilter.GaussianBlur(45))
+    m, _ = mask_of(word, fit_size(word))
+    img = bgimg.copy()
+    sh = fill_rgb(m, (0, 0, 0)).filter(ImageFilter.GaussianBlur(14))
+    img = ImageChops.subtract(img, ImageChops.offset(sh, 8, 12).point(lambda v: int(v * (0.6 if dark else 0.45))))
+    refr = ImageChops.offset(bgimg, 7, -7)
+    arr = np.asarray(refr).astype(np.float32)
+    if dark:
+        ys = np.linspace(0.95, 0.32, H)[:, None, None]
+        glass = np.clip(arr * 0.5 + np.array(tint) * 0.55 * ys, 0, 255).astype(np.uint8)
+        blend = 0.95
+        edge_hi = (235, 240, 248)
+    else:
+        ys = np.linspace(1.35, 0.72, H)[:, None, None]
+        glass = np.clip(arr * 0.42 + np.array(tint) * 0.58 * ys, 0, 255).astype(np.uint8)
+        blend = 0.9
+        edge_hi = (255, 255, 255)
+    body = img.copy(); body.paste(Image.fromarray(glass), (0, 0), m)
+    img = Image.blend(img, body, blend)
+    emb = emboss(img.copy(), m, 122, edge_hi, 1.5, 4, shadow_color=(15, 25, 40))
+    img.paste(emb, (0, 0), m)
+    streak = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(streak).polygon([(150, 0), (250, 0), (140, H), (40, H)], fill=130)
+    streak = ImageChops.multiply(streak.filter(ImageFilter.GaussianBlur(16)), m)
+    img.paste(Image.new("RGB", (W, H), (255, 255, 255)), (0, 0), streak)
+    paste(img, edge_hi, ring(m, 2))
+    img = ImageChops.add(img, glow_layer(ring(m, 2), tuple(min(255, c + 30) for c in tint), 8, 0.5))
+    return img
+
+
+_GLASS_BG = ((130, 70, 150, (120, 70, 160)), (430, 220, 160, (60, 150, 170)), (300, 50, 120, (200, 90, 140)))
+def r_lg_clear():    return render_glass("CLEAR", (228, 238, 248), False)
+def r_lg_regular():  return render_glass("REGULAR", (205, 222, 240), False)
+def r_lg_dark():     return render_glass("DARK", (44, 52, 64), True, bgc=(16, 18, 26))
+def r_lg_frost():    return render_glass("FROST", (240, 244, 250), False)
+def r_lg_azure():    return render_glass("AZURE", (170, 205, 245), False, blobs=_GLASS_BG)
+def r_lg_mint():     return render_glass("MINT", (180, 235, 212), False, blobs=_GLASS_BG)
+def r_lg_rose():     return render_glass("ROSE", (245, 200, 220), False, blobs=_GLASS_BG)
+def r_lg_amber():    return render_glass("AMBER", (245, 222, 175), False, blobs=_GLASS_BG)
+def r_lg_violet():   return render_glass("VIOLET", (210, 195, 245), False, blobs=_GLASS_BG)
+def r_lg_graphite(): return render_glass("GRAPHITE", (58, 62, 72), True, bgc=(14, 15, 20))
+
+
 def r_kinetic():
     img = bg((24, 26, 34))
     for i, a in enumerate([0.12, 0.22, 0.4]):
@@ -512,6 +563,11 @@ STYLES = [
     ("teal_lagoon", "Lagoon Gloss", r_teal_lagoon), ("teal_seafoam", "Seafoam Gloss", r_teal_seafoam),
     ("teal_petrol", "Petrol Gloss", r_teal_petrol), ("teal_tiffany", "Tiffany Gloss", r_teal_tiffany),
     ("teal_spearmint", "Spearmint Gloss", r_teal_spearmint), ("teal_ice", "Ice Gloss", r_teal_ice),
+    ("lg_clear", "Glass Clear", r_lg_clear), ("lg_regular", "Glass Regular", r_lg_regular),
+    ("lg_dark", "Glass Dark", r_lg_dark), ("lg_frost", "Glass Frost", r_lg_frost),
+    ("lg_azure", "Glass Azure", r_lg_azure), ("lg_mint", "Glass Mint", r_lg_mint),
+    ("lg_rose", "Glass Rose", r_lg_rose), ("lg_amber", "Glass Amber", r_lg_amber),
+    ("lg_violet", "Glass Violet", r_lg_violet), ("lg_graphite", "Glass Graphite", r_lg_graphite),
 ]
 
 
@@ -545,6 +601,9 @@ def main():
     teal_ids = ["onyx_teal", "teal_aqua", "teal_turquoise", "teal_cyan", "teal_mint", "teal_lagoon",
                 "teal_seafoam", "teal_petrol", "teal_tiffany", "teal_spearmint", "teal_ice"]
     sheet([rendered[idx[i]] for i in teal_ids], "/tmp/sheet_teal.png")
+    glass_ids = ["lg_clear", "lg_regular", "lg_dark", "lg_frost", "lg_azure", "lg_mint",
+                 "lg_rose", "lg_amber", "lg_violet", "lg_graphite"]
+    sheet([rendered[idx[i]] for i in glass_ids], "/tmp/sheet_glass.png")
     print("done:", len(rendered), "renders ->", OUT)
 
 

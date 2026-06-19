@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.0.0 — Apple-style Liquid Glass family (+10)
+- New "Glass" category with 10 Apple-inspired Liquid Glass styles: Clear,
+  Regular, Dark, Frost, Azure, Mint, Rose, Amber, Violet, Graphite.
+- New liquidGlass() engine: translucent gradient body + strong EDGE LENSING
+  (bright refractive rim) + CC Glass refraction + CC Light Sweep specular +
+  edge-only bloom + adaptive (light/dark) shadow. Respects the Primary override.
+- The original Liquid Glass style is untouched. Library is now 57 styles.
+
+
 ## 2.9.0 — Teal spectrum family (+10)
 - New "Teal" category with 10 premium glossy-lacquer styles across the teal
   spectrum: Aqua, Turquoise, Cyan, Mint, Lagoon, Seafoam, Petrol, Tiffany,
