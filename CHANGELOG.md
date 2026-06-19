@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.7.0 — New idea samples (+4): Electric, Ice, Synthwave, Gold Foil
+- Electric (animated): high-voltage neon, white-hot core, crackling edges,
+  flickering electric bloom.
+- Frozen Ice: icy crystalline gradient + frosty bevel + cold sheen.
+- Synthwave 80s: cyan-to-magenta chrome with hot neon glow.
+- Gold Foil: rich gold gradient + bright bevel + foil specular + sparkle.
+  One sample of each idea (expand later). Library is now 116 styles.
+
+
 ## 3.6.0 — Fire & Smoke readability fix
 - Fire and Smoke kept the text legible: the LETTERS now stay crisp and readable
   (hot gradient/solid fill + bevel) while the flames lick from the top edge and

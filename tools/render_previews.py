@@ -686,6 +686,113 @@ def r_fire_blue():    return render_fire("FROST", "#001A4A", "#9FE8FF", bgc=(4, 
 def r_fire_green():   return render_fire("TOXIC", "#003311", "#9FFF8F", bgc=(4, 10, 6))
 def r_fire_purple():  return render_fire("ARCANE", "#2A0040", "#E89FFF", bgc=(8, 4, 12))
 
+def render_electric(word, c="#3FC8FF", bgc=(6, 8, 16), seed=5):
+    img = bg(bgc, vignette=False)
+    m, _ = mask_of(word, fit_size(word))
+    col = hx(c)
+    # lightning bolts behind (jagged, glowing)
+    bolts = Image.new("L", (W, H), 0); db = ImageDraw.Draw(bolts)
+    random.seed(seed)
+    for _ in range(6):
+        x = random.randint(50, W - 50); pts = [(x, 0)]; y = 0
+        while y < H:
+            y += random.randint(22, 44); x += random.randint(-46, 46); pts.append((x, y))
+        db.line(pts, fill=255, width=2)
+    img = ImageChops.add(img, _colorize_L(bolts.filter(ImageFilter.GaussianBlur(6)), col))
+    img = ImageChops.add(img, _colorize_L(bolts, (210, 240, 255)))
+    # electric bloom
+    for r, g in [(50, 1.0), (26, 1.0), (12, 1.0)]:
+        img = ImageChops.add(img, glow_layer(m, col, r, g, passes=1))
+    # white-hot core text
+    img.paste(Image.new("RGB", (W, H), (225, 245, 255)), (0, 0), m)
+    paste(img, col, ring(m, 2))
+    return img
+
+
+def render_ice(word, c="#BFE8FF", bgc=(10, 16, 24)):
+    img = bg(bgc)
+    m, _ = mask_of(word, fit_size(word))
+    col = hx(c)
+    img = ImageChops.add(img, glow_layer(m, col, 22, 0.55))
+    lo = np.array(_shade(col, -0.35), float); hi = np.array([250, 255, 255], float)
+    ys = np.linspace(1, 0, H)[:, None, None]
+    grad = ((hi * ys + lo * (1 - ys)) * np.ones((H, W, 1))).astype(np.uint8)
+    face = Image.new("RGB", (W, H), (0, 0, 0)); face.paste(Image.fromarray(grad), (0, 0), m)
+    face = emboss(face, m, 122, (255, 255, 255), 1.4, 4, shadow_color=(40, 70, 100))
+    img.paste(face, (0, 0), m)
+    img = spec_streak(img, m, alpha=0.55)
+    # frost sparkles
+    sp = Image.new("L", (W, H), 0); ds = ImageDraw.Draw(sp); random.seed(9)
+    mm = np.array(m)
+    for _ in range(60):
+        x, y = random.randint(0, W - 1), random.randint(0, H - 1)
+        if mm[y, x] > 120: ds.ellipse([x, y, x + 2, y + 2], fill=255)
+    img = ImageChops.add(img, _colorize_L(sp, (255, 255, 255)))
+    paste(img, (235, 248, 255), ring(m, 1))
+    return img
+
+
+def render_synthwave(word):
+    # dusk gradient bg + sun + perspective grid
+    arr = np.zeros((H, W, 3), np.float32)
+    top = np.array([40, 12, 60]); botc = np.array([12, 6, 26])
+    ys = np.linspace(0, 1, H)[:, None, None]
+    arr[:] = (top * (1 - ys) + botc * ys)
+    img = Image.fromarray(arr.astype(np.uint8))
+    d = ImageDraw.Draw(img)
+    # sun
+    sun = Image.new("L", (W, H), 0); ImageDraw.Draw(sun).ellipse([W / 2 - 90, 70, W / 2 + 90, 250], fill=255)
+    img = ImageChops.add(img, _colorize_L(sun.filter(ImageFilter.GaussianBlur(2)), (255, 120, 90)))
+    # grid (lower third)
+    gy0 = int(H * 0.66)
+    for k in range(0, 9):
+        yy = gy0 + (H - gy0) * (k / 8.0) ** 1.6
+        d.line([(0, yy), (W, yy)], fill=(120, 40, 120), width=1)
+    for vx in range(-10, 11):
+        d.line([(W / 2, gy0), (W / 2 + vx * 60, H)], fill=(120, 40, 120), width=1)
+    m, _ = mask_of(word, fit_size(word, 420))
+    lo = np.array(hx("#FF2E7E"), float); hi = np.array(hx("#2DE2FF"), float)
+    ys2 = np.linspace(1, 0, H)[:, None, None]
+    grad = ((hi * ys2 + lo * (1 - ys2)) * np.ones((H, W, 1))).astype(np.uint8)
+    img = ImageChops.add(img, glow_layer(m, hx("#FF2E7E"), 26, 0.7))
+    img = ImageChops.add(img, glow_layer(m, hx("#2DE2FF"), 18, 0.6))
+    face = Image.new("RGB", (W, H), (0, 0, 0)); face.paste(Image.fromarray(grad), (0, 0), m)
+    face = emboss(face, m, 122, (255, 255, 255), 1.1, 3, shadow_color=(60, 10, 50))
+    img.paste(face, (0, 0), m)
+    paste(img, (255, 255, 255), ring(m, 1))
+    return img
+
+
+def render_goldfoil(word):
+    img = bg((14, 11, 4))
+    m, _ = mask_of(word, fit_size(word))
+    lo = np.array(hx("#8A5A12"), float); hi = np.array(hx("#FFF0B0"), float)
+    ys = np.linspace(1, 0, H)[:, None, None]
+    grad = ((hi * ys + lo * (1 - ys)) * np.ones((H, W, 1))).astype(np.uint8)
+    img = ImageChops.add(img, glow_layer(m, hx("#FFCB5E"), 24, 0.55))
+    face = Image.new("RGB", (W, H), (0, 0, 0)); face.paste(Image.fromarray(grad), (0, 0), m)
+    face = emboss(face, m, 122, hx("#FFF8D8"), 1.2, 4, shadow_color=(60, 38, 6))
+    # foil grain
+    gr = (np.random.RandomState(4).rand(H, W) * 40 - 20)
+    fa = np.clip(np.asarray(face).astype(np.float32) + gr[..., None], 0, 255).astype(np.uint8)
+    face = Image.fromarray(fa)
+    img.paste(face, (0, 0), m)
+    img = spec_streak(img, m, alpha=0.6)
+    sp = Image.new("L", (W, H), 0); ds = ImageDraw.Draw(sp); random.seed(2); mm = np.array(m)
+    for _ in range(40):
+        x, y = random.randint(0, W - 1), random.randint(0, H - 1)
+        if mm[y, x] > 120: ds.ellipse([x, y, x + 2, y + 2], fill=255)
+    img = ImageChops.add(img, _colorize_L(sp, (255, 250, 220)))
+    paste(img, hx("#7A521A"), ring(m, 1))
+    return img
+
+
+def r_electric():   return render_electric("ELECTRIC")
+def r_ice():        return render_ice("FROZEN")
+def r_synthwave():  return render_synthwave("RETRO")
+def r_goldfoil():   return render_goldfoil("GOLD FOIL")
+
+
 def r_smoke_white():  return render_smoke("SMOKE", "#C8CCD2")
 def r_smoke_dark():   return render_smoke("SHADOW", "#7A8088", bgc=(8, 8, 10))
 def r_smoke_blue():   return render_smoke("MIST", "#9FB6D8", bgc=(10, 12, 18))
@@ -738,6 +845,8 @@ STYLES = [
     ("smoke_white", "Smoke", r_smoke_white), ("smoke_dark", "Smoke Dark", r_smoke_dark),
     ("smoke_blue", "Smoke Blue", r_smoke_blue), ("smoke_purple", "Smoke Mystic", r_smoke_purple),
     ("smoke_ember", "Smoke Ember", r_smoke_ember),
+    ("electric", "Electric", r_electric), ("ice_frozen", "Frozen Ice", r_ice),
+    ("synthwave", "Synthwave 80s", r_synthwave), ("gold_foil", "Gold Foil", r_goldfoil),
 ]
 
 
@@ -783,6 +892,8 @@ def main():
     fs_ids = ["fire_classic", "fire_ember", "fire_blue", "fire_green", "fire_purple",
               "smoke_white", "smoke_dark", "smoke_blue", "smoke_purple", "smoke_ember"]
     sheet([rendered[idx[i]] for i in fs_ids], "/tmp/sheet_firesmoke.png")
+    new_ids = ["electric", "ice_frozen", "synthwave", "gold_foil"]
+    sheet([rendered[idx[i]] for i in new_ids], "/tmp/sheet_newideas.png")
     print("done:", len(rendered), "renders ->", OUT)
 
 
