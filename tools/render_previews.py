@@ -369,13 +369,35 @@ def r_marble():
 
 
 def r_frosted():
-    img = bg((20, 26, 34))
+    # textured background so the glass translucency + refraction actually reads
+    bgimg = bg((24, 32, 46))
+    d = ImageDraw.Draw(bgimg)
+    for (cx, cy, r, col) in [(150, 90, 130, (70, 110, 160)), (430, 210, 150, (110, 80, 150)), (300, 60, 110, (60, 140, 170))]:
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=col)
+    bgimg = bgimg.filter(ImageFilter.GaussianBlur(45))
     m, _ = mask_of("GLASS", fit_size("GLASS"))
-    tmp = img.copy(); paste(tmp, (205, 222, 238), m)
-    img = Image.blend(img, tmp, 0.62)
-    face = emboss(img.copy(), m, 122, (255, 255, 255), 1.0, 3)
-    img.paste(face, (0, 0), m)
+    img = bgimg.copy()
+    # drop shadow
+    sh = fill_rgb(m, (0, 0, 0)).filter(ImageFilter.GaussianBlur(14))
+    img = ImageChops.subtract(img, ImageChops.offset(sh, 8, 12).point(lambda v: int(v * 0.45)))
+    # glass body = refracted background + a light vertical gradient (clear, not faded)
+    refr = ImageChops.offset(bgimg, 7, -7)
+    arr = np.asarray(refr).astype(np.float32)
+    ys = np.linspace(1.35, 0.72, H)[:, None, None]
+    glass = np.clip(arr * 0.42 + np.array([205, 228, 248]) * 0.58 * ys, 0, 255).astype(np.uint8)
+    body = img.copy(); body.paste(Image.fromarray(glass), (0, 0), m)
+    img = Image.blend(img, body, 0.9)  # translucent
+    # bright refractive bevel edges
+    emb = emboss(img.copy(), m, 122, (255, 255, 255), 1.5, 4, shadow_color=(20, 40, 60))
+    img.paste(emb, (0, 0), m)
+    # diagonal specular streak (clipped to the letters)
+    streak = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(streak).polygon([(150, 0), (250, 0), (140, H), (40, H)], fill=130)
+    streak = ImageChops.multiply(streak.filter(ImageFilter.GaussianBlur(16)), m)
+    img.paste(Image.new("RGB", (W, H), (255, 255, 255)), (0, 0), streak)
+    # crisp rim + subtle edge-only glow
     paste(img, (255, 255, 255), ring(m, 2))
+    img = ImageChops.add(img, glow_layer(ring(m, 2), (200, 230, 255), 8, 0.5))
     return img
 
 
@@ -406,7 +428,7 @@ STYLES = [
     ("ruby", "Ruby Gem", r_ruby), ("amethyst", "Amethyst Gem", r_amethyst),
     ("onyx", "Onyx Gloss", r_onyx), ("pearl", "Pearl", r_pearl),
     ("titanium", "Titanium", r_titanium), ("liquid_gold", "Liquid Gold", r_liquidgold),
-    ("frosted_glass", "Frosted Glass", r_frosted), ("holographic", "Holographic", r_holographic),
+    ("frosted_glass", "Liquid Glass", r_frosted), ("holographic", "Holographic", r_holographic),
     ("neon_gold", "Neon Gold", r_neon_gold), ("navy_gold", "Navy & Gold", r_navy_gold),
 ]
 

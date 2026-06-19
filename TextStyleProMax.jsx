@@ -23,7 +23,7 @@
     // 0. Constants & small utilities
     // -------------------------------------------------------------------------
     var SCRIPT_NAME = "Text Style Pro Max";
-    var SCRIPT_VERSION = "2.5.0";
+    var SCRIPT_VERSION = "2.6.0";
 
     // Layer-style group on every layer.
     var LS_GROUP = "ADBE Layer Styles";
@@ -743,15 +743,25 @@
             }
         },
         {
-            id: "frosted_glass", name: "Frosted Glass", cat: "Luxe", badge: "LUXE",
-            desc: "Translucent frosted glass with bright bevelled edges — clean & premium.",
+            id: "frosted_glass", name: "Liquid Glass", cat: "Luxe", badge: "LUXE",
+            desc: "Real translucent glass — clear gradient body, bright refractive edges, a specular sweep. Edge-only bloom keeps it crisp (no washed-out glow).",
             apply: function (layer, o) {
-                textFill(layer, o._primaryIsDefault ? hexToRgb("#CDDCEA") : o.primary);
-                bevelAlpha(layer, 9 * o.intensity, -52, [1, 1, 1], 1.0);
-                textStroke(layer, [1, 1, 1], 2, false);
-                glowFx(layer, 22 * o.intensity, 1.1, 56, "Glass Edge");
-                try { layer.property("ADBE Transform Group").property("ADBE Opacity").setValue(78); } catch (e) {}
-                dropShadowFx(layer, hexToRgb("#16202C"), 35, 135, 10, 16);
+                var tint = o._primaryIsDefault ? hexToRgb("#BFE0F5") : o.primary;
+                // 1) clear glass body: cool gradient inside the letters (not a flat fade)
+                var pl = gradientInText(layer, shade(tint, -0.45), [0.96, 0.99, 1.0], 90);
+                // 2) strong bright refractive edge
+                bevelAlpha(pl, 9 * (0.7 + 0.5 * o.intensity), -52, [1, 1, 1], 1.15 * o.intensity);
+                // 3) optional true refraction (Cycore, ships with AE) — best effort
+                addEffect(pl, "CC Glass", "Refraction");
+                // 4) a glassy specular streak across the letters — best effort
+                var sweep = addEffect(pl, "CC Light Sweep", "Specular");
+                if (sweep) { setFx(sweep, 2, 38); setFx(sweep, 4, 70); }
+                // 5) EDGE-ONLY bloom: high threshold so the clear body stays crisp
+                glowFx(pl, 9 * o.intensity, 1.0, 82, "Edge Spec");
+                // 6) translucency — readable, not faded
+                try { pl.property("ADBE Transform Group").property("ADBE Opacity").setValue(84); } catch (e) {}
+                // 7) depth
+                dropShadowFx(pl, hexToRgb("#0E1A26"), 45, 135, 12, 18);
             }
         },
         {

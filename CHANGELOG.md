@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.6.0 — Liquid Glass redesigned (real glass, not faded text)
+- Reworked "Frosted Glass" into a proper **Liquid Glass**: a clear gradient
+  glass body (via gradient-in-letters), bright refractive bevel edges, an
+  optional CC Glass refraction + CC Light Sweep specular streak, and an
+  EDGE-ONLY bloom (high threshold) so the body stays crisp instead of being
+  washed out by glow.
+- Updated the preview renderer to show the new glass over a textured backdrop
+  so the translucency/refraction reads.
+
+
 ## 2.5.0 — Real gradient INSIDE the letters (match the renders)
 - The big gap between the preview renders and the AE output was the metallic
   GRADIENT: the renders fill the letters with a light->dark sheen, while the
