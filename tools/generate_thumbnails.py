@@ -441,6 +441,98 @@ def th_marble_gold():
     return finalize(badge(img, "LUXE", (201, 162, 75)), "Marble Gold")
 
 
+# ---------------------------------------------------------------------------
+# Luxury pack II
+# ---------------------------------------------------------------------------
+def th_ruby():
+    return th_gem("RUBY", "Ruby Gem", (22, 8, 12), (74, 5, 17), (196, 30, 58), (255, 201, 210), (220, 80, 100))
+
+
+def th_amethyst():
+    return th_gem("AMETHYST", "Amethyst Gem", (16, 10, 24), (46, 17, 71), (155, 89, 208), (230, 204, 255), (170, 110, 230))
+
+
+def th_onyx():
+    img = bg((6, 6, 8))
+    mask, _ = text_mask("ONYX", 66, pad_top=-12)
+    grad = vgrad([(0.0, (10, 10, 12)), (0.35, (74, 74, 82)), (0.5, (20, 20, 24)),
+                  (0.78, (54, 54, 62)), (1.0, (8, 8, 10))])
+    face = Image.new("RGB", (W, H), (0, 0, 0)); face.paste(grad, (0, 0), mask)
+    img.paste(face, (0, 0), mask)
+    bv, hi_m, _ = bevel(mask, (160, 160, 172), (0, 0, 0), depth=2)
+    img.paste(Image.new("RGB", (W, H), (130, 130, 142)), (0, 0), hi_m)
+    return finalize(badge(img, "LUXE", (120, 120, 134)), "Onyx Gloss")
+
+
+def th_pearl():
+    return _metal("PEARL", (26, 24, 28),
+                  [(0.0, (200, 188, 205)), (0.34, (255, 248, 240)), (0.5, (222, 208, 226)),
+                   (0.78, (255, 252, 248)), (1.0, (198, 186, 205))],
+                  "Pearl", badge_col=(210, 200, 215), size=58)
+
+
+def th_titanium():
+    return _metal("TITANIUM", (12, 13, 15),
+                  [(0.0, (32, 36, 42)), (0.34, (150, 158, 168)), (0.5, (70, 76, 84)),
+                   (0.78, (182, 190, 200)), (1.0, (30, 34, 40))],
+                  "Titanium", badge_col=(140, 150, 162), size=46)
+
+
+def th_liquid_gold():
+    return _metal("GOLD", (20, 14, 4),
+                  [(0.0, (106, 61, 2)), (0.3, (255, 232, 150)), (0.5, (196, 142, 36)),
+                   (0.54, (255, 240, 170)), (0.78, (255, 250, 220)), (1.0, (106, 61, 2))],
+                  "Liquid Gold", badge_col=(220, 170, 70), glow=(235, 175, 60), size=72)
+
+
+def th_frosted_glass():
+    img = bg((20, 26, 34))
+    mask, _ = text_mask("GLASS", 70, pad_top=-12)
+    tmp = img.copy()
+    tmp.paste(Image.new("RGB", (W, H), (205, 222, 238)), (0, 0), mask)
+    img = Image.blend(img, tmp, 0.62)
+    bv, hi_m, _ = bevel(mask, (255, 255, 255), (120, 150, 180), depth=2)
+    img.paste(Image.new("RGB", (W, H), (255, 255, 255)), (0, 0), hi_m)
+    return finalize(badge(img, "LUXE", (170, 200, 225)), "Frosted Glass")
+
+
+def th_holographic():
+    import colorsys
+    img = bg((16, 16, 22))
+    mask, _ = text_mask("HOLO", 74, pad_top=-12)
+    grad = Image.new("RGB", (W, H)); px = grad.load()
+    for x in range(W):
+        r, g, b = colorsys.hsv_to_rgb((x / W * 0.92) % 1.0, 0.55, 1.0)
+        col = (int(r * 255), int(g * 255), int(b * 255))
+        for y in range(H):
+            px[x, y] = col
+    face = Image.new("RGB", (W, H), (0, 0, 0)); face.paste(grad, (0, 0), mask)
+    img = ImageChops.add(img, colorize(mask, (180, 180, 255)).filter(ImageFilter.GaussianBlur(14)).point(lambda v: int(v * 0.4)))
+    img.paste(face, (0, 0), mask)
+    return finalize(badge(img, "LUXE", (200, 120, 230)), "Holographic")
+
+
+def th_neon_gold():
+    img = bg((14, 11, 4), vignette=False)
+    mask, _ = text_mask("GOLD", 78, pad_top=-12)
+    gold = (255, 200, 80)
+    for r in (26, 14, 6):
+        img = ImageChops.add(img, colorize(mask, gold).filter(ImageFilter.GaussianBlur(r)))
+    img.paste(Image.new("RGB", (W, H), (255, 242, 205)), (0, 0), mask)
+    return finalize(badge(img, "LUXE", (220, 170, 70)), "Neon Gold")
+
+
+def th_navy_gold():
+    img = bg((6, 8, 16))
+    mask, _ = text_mask("NAVY", 66, pad_top=-12)
+    gold = (212, 169, 75)
+    img = ImageChops.add(img, colorize(mask, gold).filter(ImageFilter.GaussianBlur(14)).point(lambda v: int(v * 0.55)))
+    img.paste((22, 34, 72), (0, 0), mask)
+    ring = ImageChops.subtract(mask.filter(ImageFilter.MaxFilter(5)), mask)
+    img.paste(Image.new("RGB", (W, H), gold), (0, 0), ring)
+    return finalize(badge(img, "LUXE", gold), "Navy & Gold")
+
+
 RENDERERS = {
     "chrome_y2k":   th_chrome,
     "gold_luxury":  th_gold,
@@ -463,6 +555,17 @@ RENDERERS = {
     "royal_velvet": th_royal_velvet,
     "copper_bronze": th_copper_bronze,
     "marble_gold":  th_marble_gold,
+    # luxury pack II
+    "ruby":         th_ruby,
+    "amethyst":     th_amethyst,
+    "onyx":         th_onyx,
+    "pearl":        th_pearl,
+    "titanium":     th_titanium,
+    "liquid_gold":  th_liquid_gold,
+    "frosted_glass": th_frosted_glass,
+    "holographic":  th_holographic,
+    "neon_gold":    th_neon_gold,
+    "navy_gold":    th_navy_gold,
 }
 
 

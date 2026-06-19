@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.0 — Luxury pack II (+10 styles, 30 total)
+- Added 10 more premium styles: Ruby Gem, Amethyst Gem, Onyx Gloss, Pearl,
+  Titanium, Liquid Gold, Frosted Glass, Holographic, Neon Gold, Navy & Gold.
+- Library is now 30 styles; thumbnails regenerated & re-embedded.
+
+
 ## 2.1.0 — Luxury pack (+10 styles)
 - Added a **Luxe** pack (10 new styles): Platinum, Rose Gold, Black & Gold,
   Diamond, Champagne, Emerald Gem, Sapphire Gem, Royal Velvet, Copper Bronze,
