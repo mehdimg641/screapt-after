@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.4.0 — Distinct, richer looks (Tritone removed from metals/gems)
+- Root cause of "all styles look the same": the Tritone tone-map was overriding
+  each style's base colour, flattening every metal/gem into a similar grey-ish
+  tone. Removed Tritone from all metals and gems.
+- Metals now keep their true fill colour as identity + a bright bevel sheen, a
+  contrasting trim stroke, bloom and shadow (the formula from the well-liked
+  Black & Gold / Onyx / Royal Velvet).
+- Gems use a new faceted gemSurface (bevel + bright edge + strong coloured glow)
+  so Ruby/Emerald/Sapphire/Amethyst/Diamond read clearly different.
+- Cleaned up Pearl, Frosted Glass and Fluid Morph the same way. Onyx, Royal
+  Velvet and Holographic (intentionally multi-colour) keep their tone-map.
+
+
 ## 2.3.0 — UI overhaul (scroll + previews fixed)
 - Replaced the non-scrolling icon grid with a native **scrollable ListBox** —
   all 30 styles are now reachable.

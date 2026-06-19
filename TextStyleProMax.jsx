@@ -23,7 +23,7 @@
     // 0. Constants & small utilities
     // -------------------------------------------------------------------------
     var SCRIPT_NAME = "Text Style Pro Max";
-    var SCRIPT_VERSION = "2.3.0";
+    var SCRIPT_VERSION = "2.4.0";
 
     // Layer-style group on every layer.
     var LS_GROUP = "ADBE Layer Styles";
@@ -245,13 +245,25 @@
         return f;
     }
 
-    // Build a metallic SURFACE on the text itself: bevel shading remapped to a
-    // metal palette. No precomp, no track matte — alpha stays intact.
+    // Metallic surface that KEEPS the base fill colour as the identity (no
+    // Tritone — that was flattening every metal into the same grey tone).
+    // The caller sets textFill(base) first; here we add a bright bevel sheen,
+    // a darker contrast trim (stroke), a bloom and a drop shadow.
+    // Signature kept stable: (layer, o, trimCol, midCol[unused], hiEdge, edge, glowR, warm)
     function metalSurface(layer, o, shadowCol, midCol, hiCol, edge, glowR, warmGlow) {
-        bevelAlpha(layer, edge * (0.6 + 0.4 * o.intensity), -58, [1, 1, 1], 0.75 * o.intensity);
-        tritone(layer, shadowCol, midCol, hiCol);
-        glowFx(layer, glowR * o.intensity, 1.1, 62, "Metal Bloom");
-        dropShadowFx(layer, warmGlow ? [0.05, 0.02, 0] : [0, 0, 0], 60, 135, 9 + edge, 14);
+        bevelAlpha(layer, edge * (0.7 + 0.5 * o.intensity), -55, hiCol || [1, 1, 1], 0.9 * o.intensity);
+        textStroke(layer, shadowCol, 2.5, false);
+        glowFx(layer, glowR * o.intensity, 1.0, 60, "Metal Bloom");
+        dropShadowFx(layer, warmGlow ? [0.05, 0.02, 0] : [0, 0, 0], 62, 135, 9 + edge, 15);
+    }
+
+    // Gemstone surface: faceted bevel + bright edge + strong coloured glow.
+    function gemSurface(layer, o, base, edgeCol, glowR) {
+        bevelAlpha(layer, 7 * (0.7 + 0.5 * o.intensity), -55, edgeCol, 0.95 * o.intensity);
+        textStroke(layer, edgeCol, 2, false);
+        glowFx(layer, glowR * o.intensity, 1.7, 46, "Gem Glow");
+        glowFx(layer, 12, 1.2, 62, "Facet Shine");
+        dropShadowFx(layer, shade(base, -0.6), 55, 135, 10, 15);
     }
 
     // ---- Directional gradient INSIDE text via Ramp solid + alpha matte ----
@@ -496,11 +508,11 @@
                 var a = o._primaryIsDefault ? hexToRgb("#5B8CFF") : o.primary;
                 var b = o._secondaryIsDefault ? hexToRgb("#B852FF") : o.secondary;
                 textFill(layer, mix(a, b, 0.5));
-                bevelAlpha(layer, 7 * o.intensity, -55, [1, 1, 1], 0.7);
-                tritone(layer, shade(a, -0.3), mix(a, b, 0.5), shade(b, 0.4));
+                bevelAlpha(layer, 8 * o.intensity, -55, shade(b, 0.5), 0.8);
+                textStroke(layer, shade(a, 0.3), 2, false);
                 var td = addEffect(layer, "ADBE Turbulent Displace", "Liquid");
                 if (td) { setFx(td, 2, 22 * o.intensity); setFx(td, 3, 60); setFxExpr(td, 7, "time*120"); }
-                glowFx(layer, 24 * o.intensity, 1.3, 50, "Sheen");
+                glowFx(layer, 28 * o.intensity, 1.4, 48, "Sheen");
                 dropShadowFx(layer, shade(a, -0.6), 45, 135, 8, 14);
             }
         },
@@ -565,13 +577,8 @@
             id: "diamond", name: "Diamond", cat: "Gem", badge: "LUXE",
             desc: "Icy crystalline facets with sparkle bloom — brilliant white diamond.",
             apply: function (layer, o) {
-                textFill(layer, [0.96, 0.98, 1]);
-                bevelAlpha(layer, 7 * o.intensity, -52, [1, 1, 1], 0.95 * o.intensity);
-                tritone(layer, hexToRgb("#9DBDE0"), hexToRgb("#E6F1FF"), [1, 1, 1]);
-                glowFx(layer, 40 * o.intensity, 2.0, 72, "Sparkle");
-                glowFx(layer, 12, 1.4, 60, "Core Shine");
-                textStroke(layer, hexToRgb("#BFD6F0"), 1.5, false);
-                dropShadowFx(layer, hexToRgb("#1A2436"), 45, 135, 8, 14);
+                textFill(layer, o._primaryIsDefault ? hexToRgb("#DCEBFF") : o.primary);
+                gemSurface(layer, o, hexToRgb("#DCEBFF"), [1, 1, 1], 42);
             }
         },
         {
@@ -590,10 +597,7 @@
             apply: function (layer, o) {
                 var g = o._primaryIsDefault ? hexToRgb("#1FB573") : o.primary;
                 textFill(layer, g);
-                bevelAlpha(layer, 7 * o.intensity, -55, hexToRgb("#CFFFE6"), 0.85);
-                tritone(layer, hexToRgb("#063D29"), g, hexToRgb("#C4FFE2"));
-                glowFx(layer, 30 * o.intensity, 1.5, 55, "Emerald Glow");
-                dropShadowFx(layer, hexToRgb("#03251A"), 55, 135, 9, 15);
+                gemSurface(layer, o, g, hexToRgb("#CFFFE6"), 30);
             }
         },
         {
@@ -602,10 +606,7 @@
             apply: function (layer, o) {
                 var g = o._primaryIsDefault ? hexToRgb("#2B6FE0") : o.primary;
                 textFill(layer, g);
-                bevelAlpha(layer, 7 * o.intensity, -55, hexToRgb("#CFE2FF"), 0.85);
-                tritone(layer, hexToRgb("#0A1E5A"), g, hexToRgb("#BCD8FF"));
-                glowFx(layer, 30 * o.intensity, 1.5, 55, "Sapphire Glow");
-                dropShadowFx(layer, hexToRgb("#04113A"), 55, 135, 9, 15);
+                gemSurface(layer, o, g, hexToRgb("#CFE2FF"), 30);
             }
         },
         {
@@ -650,10 +651,7 @@
             apply: function (layer, o) {
                 var g = o._primaryIsDefault ? hexToRgb("#C41E3A") : o.primary;
                 textFill(layer, g);
-                bevelAlpha(layer, 7 * o.intensity, -55, hexToRgb("#FFD0D8"), 0.85);
-                tritone(layer, hexToRgb("#4A0511"), g, hexToRgb("#FFC9D2"));
-                glowFx(layer, 30 * o.intensity, 1.5, 55, "Ruby Glow");
-                dropShadowFx(layer, hexToRgb("#2A0309"), 55, 135, 9, 15);
+                gemSurface(layer, o, g, hexToRgb("#FFD0D8"), 30);
             }
         },
         {
@@ -662,10 +660,7 @@
             apply: function (layer, o) {
                 var g = o._primaryIsDefault ? hexToRgb("#9B59D0") : o.primary;
                 textFill(layer, g);
-                bevelAlpha(layer, 7 * o.intensity, -55, hexToRgb("#EEDBFF"), 0.85);
-                tritone(layer, hexToRgb("#2E1147"), g, hexToRgb("#E6CCFF"));
-                glowFx(layer, 30 * o.intensity, 1.5, 55, "Amethyst Glow");
-                dropShadowFx(layer, hexToRgb("#190826"), 55, 135, 9, 15);
+                gemSurface(layer, o, g, hexToRgb("#EEDBFF"), 30);
             }
         },
         {
@@ -684,12 +679,11 @@
             id: "pearl", name: "Pearl", cat: "Luxe", badge: "LUXE",
             desc: "Iridescent cream pearl with a cool-warm lustre — delicate and rich.",
             apply: function (layer, o) {
-                textFill(layer, hexToRgb("#F4EEE6"));
-                bevelAlpha(layer, 5 * o.intensity, -55, [1, 1, 1], 0.55);
-                tritone(layer, hexToRgb("#C9BBD6"), hexToRgb("#FFF6EC"), [1, 1, 1]);
-                glowFx(layer, 18 * o.intensity, 0.9, 60, "Pearl Sheen");
-                textStroke(layer, hexToRgb("#D8CFE0"), 1.5, false);
-                dropShadowFx(layer, hexToRgb("#2A2630"), 40, 135, 8, 14);
+                textFill(layer, o._primaryIsDefault ? hexToRgb("#F4EEE6") : o.primary);
+                bevelAlpha(layer, 6 * o.intensity, -55, [1, 1, 1], 0.6);
+                textStroke(layer, hexToRgb("#C8B8D6"), 2, false);
+                glowFx(layer, 20 * o.intensity, 0.9, 58, "Pearl Sheen");
+                dropShadowFx(layer, hexToRgb("#2A2630"), 45, 135, 8, 14);
             }
         },
         {
@@ -717,11 +711,11 @@
             id: "frosted_glass", name: "Frosted Glass", cat: "Luxe", badge: "LUXE",
             desc: "Translucent frosted glass with bright bevelled edges — clean & premium.",
             apply: function (layer, o) {
-                textFill(layer, hexToRgb("#CDDCEA"));
-                bevelAlpha(layer, 8 * o.intensity, -52, [1, 1, 1], 0.9);
-                tritone(layer, hexToRgb("#7FA0C0"), hexToRgb("#DCEAF6"), [1, 1, 1], 40);
-                glowFx(layer, 18 * o.intensity, 1.0, 58, "Glass Edge");
-                try { layer.property("ADBE Transform Group").property("ADBE Opacity").setValue(80); } catch (e) {}
+                textFill(layer, o._primaryIsDefault ? hexToRgb("#CDDCEA") : o.primary);
+                bevelAlpha(layer, 9 * o.intensity, -52, [1, 1, 1], 1.0);
+                textStroke(layer, [1, 1, 1], 2, false);
+                glowFx(layer, 22 * o.intensity, 1.1, 56, "Glass Edge");
+                try { layer.property("ADBE Transform Group").property("ADBE Opacity").setValue(78); } catch (e) {}
                 dropShadowFx(layer, hexToRgb("#16202C"), 35, 135, 10, 16);
             }
         },
