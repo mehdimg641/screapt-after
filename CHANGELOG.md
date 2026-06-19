@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.2.0 — Animated metals & gems (+10 Live) + Live category
+- specular()/metalSurface()/gemSurface() gain an animate mode: the shine sweeps
+  across in a loop (expression-driven CC Light Sweep).
+- Added 10 animated styles: Gold/Chrome/Rose Gold/Copper/Liquid Gold Live and
+  Diamond/Emerald/Sapphire/Ruby/Amethyst Live. Existing styles untouched.
+- New virtual "Live" category collects every animated style. Library: 73 styles.
+- Renderer can render the metal/gem sweep at any position; added MP4 export for
+  reliable autoplay previews.
+
+
 ## 3.1.0 — Animated Liquid Glass (+6 "Live" styles)
 - liquidGlass() gains an `animate` mode: the specular shine sweeps across the
   letters in a loop (expression-driven CC Light Sweep) plus a subtle animated

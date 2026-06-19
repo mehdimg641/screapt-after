@@ -147,7 +147,7 @@ def label(img, name):
 # Generic renderers
 # ---------------------------------------------------------------------------
 def render_metal(word, fill, bevel_hi, stroke, glow=None, glow_r=22, warm=False,
-                 bgc=(18, 19, 23), band=True, sheen_amt=(1.30, 0.70)):
+                 bgc=(18, 19, 23), band=True, sheen_amt=(1.30, 0.70), sweep_x=0.34):
     img = bg(bgc)
     sz = fit_size(word)
     m, _ = mask_of(word, sz)
@@ -166,11 +166,11 @@ def render_metal(word, fill, bevel_hi, stroke, glow=None, glow_r=22, warm=False,
     if stroke:
         paste(img, stroke, ring(m, 2))
     # specular shine
-    img = spec_streak(img, m, alpha=0.5)
+    img = spec_streak(img, m, x=sweep_x, alpha=0.5)
     return img
 
 
-def render_gem(word, fill, edge, glow, glow_r=30, bgc=(12, 12, 18)):
+def render_gem(word, fill, edge, glow, glow_r=30, bgc=(12, 12, 18), sweep_x=0.34):
     img = bg(bgc)
     sz = fit_size(word)
     m, _ = mask_of(word, sz)
@@ -182,7 +182,7 @@ def render_gem(word, fill, edge, glow, glow_r=30, bgc=(12, 12, 18)):
     # facet sparkle
     paste(img, (255, 255, 255), ring(m, 1).point(lambda v: v if random.random() > .3 else 0))
     # specular shine
-    img = spec_streak(img, m, alpha=0.65)
+    img = spec_streak(img, m, x=sweep_x, alpha=0.65)
     return img
 
 
