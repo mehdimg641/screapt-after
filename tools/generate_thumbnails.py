@@ -316,6 +316,131 @@ def th_outline():
     return finalize(badge(img, "Y2K", (255, 110, 180)), "Outline Bubble")
 
 
+# ---------------------------------------------------------------------------
+# Luxury pack — generic metallic / gem renderers
+# ---------------------------------------------------------------------------
+def _metal(word, bgcol, stops, name, badge_text="LUXE", badge_col=(200, 170, 90),
+           glow=None, size=64):
+    img = bg(bgcol)
+    mask, (x, y, tw, th) = text_mask(word, size, pad_top=-12)
+    if glow:
+        img = ImageChops.add(img, colorize(mask, glow).filter(ImageFilter.GaussianBlur(16)))
+    grad = vgrad(stops)
+    face = Image.new("RGB", (W, H), (0, 0, 0))
+    face.paste(grad, (0, 0), mask)
+    bv, hi_m, lo_m = bevel(mask, stops[-1][1], stops[0][1], depth=2)
+    sh = colorize(mask, (0, 0, 0)).filter(ImageFilter.GaussianBlur(7))
+    img = ImageChops.add(img, sh)
+    img.paste(face, (0, 0), mask)
+    img.paste(Image.new("RGB", (W, H), stops[-1][1]), (0, 0), hi_m)
+    return finalize(badge(img, badge_text, badge_col), name)
+
+
+def th_platinum():
+    return _metal("PLATINUM", (16, 18, 22),
+                  [(0.0, (90, 100, 116)), (0.34, (235, 240, 248)), (0.5, (150, 162, 180)),
+                   (0.54, (220, 228, 240)), (0.78, (252, 254, 255)), (1.0, (96, 106, 122))],
+                  "Platinum", badge_col=(150, 165, 185), size=52)
+
+
+def th_rose_gold():
+    return _metal("ROSE", (24, 16, 16),
+                  [(0.0, (110, 60, 50)), (0.34, (255, 220, 206)), (0.5, (216, 150, 130)),
+                   (0.54, (255, 226, 214)), (0.78, (255, 238, 230)), (1.0, (110, 60, 48))],
+                  "Rose Gold", badge_col=(210, 150, 130), glow=(230, 160, 140))
+
+
+def th_black_gold():
+    img = bg((8, 8, 9))
+    mask, _ = text_mask("BLACK", 60, pad_top=-12)
+    gold = (230, 180, 80)
+    img = ImageChops.add(img, colorize(mask, gold).filter(ImageFilter.GaussianBlur(16)))
+    ring = ImageChops.subtract(mask.filter(ImageFilter.MaxFilter(5)), mask)
+    img.paste((14, 14, 16), (0, 0), mask)
+    img.paste(Image.new("RGB", (W, H), gold), (0, 0), ring)
+    return finalize(badge(img, "LUXE", (210, 170, 90)), "Black & Gold")
+
+
+def th_diamond():
+    img = bg((12, 16, 22))
+    mask, _ = text_mask("DIAMOND", 48, pad_top=-10)
+    for r in (24, 12):
+        img = ImageChops.add(img, colorize(mask, (180, 215, 255)).filter(ImageFilter.GaussianBlur(r)))
+    grad = vgrad([(0.0, (150, 185, 220)), (0.4, (235, 245, 255)), (0.6, (200, 220, 245)), (1.0, (245, 252, 255))])
+    face = Image.new("RGB", (W, H), (0, 0, 0)); face.paste(grad, (0, 0), mask)
+    img.paste(face, (0, 0), mask)
+    bv, hi_m, _ = bevel(mask, (255, 255, 255), (120, 150, 190), depth=2)
+    img.paste(Image.new("RGB", (W, H), (255, 255, 255)), (0, 0), hi_m)
+    return finalize(badge(img, "LUXE", (150, 200, 240)), "Diamond")
+
+
+def th_champagne():
+    return _metal("CHAMPAGNE", (22, 20, 14),
+                  [(0.0, (120, 108, 70)), (0.36, (245, 235, 200)), (0.52, (210, 196, 150)),
+                   (0.78, (255, 252, 240)), (1.0, (120, 108, 70))],
+                  "Champagne", badge_col=(200, 188, 140), size=44)
+
+
+def th_gem(word, name, bgcol, deep, mid, light, glow):
+    img = bg(bgcol)
+    mask, _ = text_mask(word, 60, pad_top=-12)
+    img = ImageChops.add(img, colorize(mask, glow).filter(ImageFilter.GaussianBlur(18)))
+    grad = vgrad([(0.0, deep), (0.45, mid), (0.5, light), (0.55, mid), (1.0, deep)])
+    face = Image.new("RGB", (W, H), (0, 0, 0)); face.paste(grad, (0, 0), mask)
+    img.paste(face, (0, 0), mask)
+    bv, hi_m, _ = bevel(mask, light, deep, depth=2)
+    img.paste(Image.new("RGB", (W, H), light), (0, 0), hi_m)
+    return finalize(badge(img, "LUXE", glow), name)
+
+
+def th_emerald():
+    return th_gem("EMERALD", "Emerald Gem", (8, 18, 14), (6, 61, 41), (31, 181, 115), (196, 255, 226), (60, 200, 140))
+
+
+def th_sapphire():
+    return th_gem("SAPPHIRE", "Sapphire Gem", (8, 12, 24), (10, 30, 90), (43, 111, 224), (188, 216, 255), (90, 150, 240))
+
+
+def th_royal_velvet():
+    img = bg((20, 8, 14))
+    mask, _ = text_mask("VELVET", 58, pad_top=-12)
+    grad = vgrad([(0.0, (70, 16, 38)), (0.5, (140, 30, 70)), (1.0, (70, 16, 38))])
+    face = Image.new("RGB", (W, H), (0, 0, 0)); face.paste(grad, (0, 0), mask)
+    img.paste(face, (0, 0), mask)
+    ring = ImageChops.subtract(mask.filter(ImageFilter.MaxFilter(3)), mask)
+    img.paste(Image.new("RGB", (W, H), (201, 162, 75)), (0, 0), ring)
+    return finalize(badge(img, "LUXE", (201, 162, 75)), "Royal Velvet")
+
+
+def th_copper_bronze():
+    return _metal("COPPER", (20, 12, 8),
+                  [(0.0, (63, 32, 8)), (0.34, (255, 217, 160)), (0.5, (181, 116, 46)),
+                   (0.54, (240, 190, 130)), (0.78, (255, 226, 180)), (1.0, (63, 32, 8))],
+                  "Copper Bronze", badge_col=(200, 140, 70), glow=(210, 140, 70))
+
+
+def th_marble_gold():
+    import random
+    img = bg((24, 24, 26))
+    mask, _ = text_mask("MARBLE", 58, pad_top=-12)
+    # white face
+    img.paste(Image.new("RGB", (W, H), (242, 240, 234)), (0, 0), mask)
+    # gold veins: random thin lines clipped to text
+    veins = Image.new("L", (W, H), 0)
+    d = ImageDraw.Draw(veins)
+    random.seed(7)
+    for _ in range(14):
+        x0 = random.randint(0, W); y0 = random.randint(0, H)
+        pts = [(x0, y0)]
+        for _ in range(5):
+            x0 += random.randint(-40, 40); y0 += random.randint(-30, 30)
+            pts.append((x0, y0))
+        d.line(pts, fill=255, width=1)
+    veins = ImageChops.multiply(veins, mask)
+    img.paste(Image.new("RGB", (W, H), (201, 162, 75)), (0, 0), veins)
+    return finalize(badge(img, "LUXE", (201, 162, 75)), "Marble Gold")
+
+
 RENDERERS = {
     "chrome_y2k":   th_chrome,
     "gold_luxury":  th_gold,
@@ -327,6 +452,17 @@ RENDERERS = {
     "fluid_morph":  th_fluid,
     "gradient_bold": th_gradient,
     "outline_bubble": th_outline,
+    # luxury pack
+    "platinum":     th_platinum,
+    "rose_gold":    th_rose_gold,
+    "black_gold":   th_black_gold,
+    "diamond":      th_diamond,
+    "champagne":    th_champagne,
+    "emerald":      th_emerald,
+    "sapphire":     th_sapphire,
+    "royal_velvet": th_royal_velvet,
+    "copper_bronze": th_copper_bronze,
+    "marble_gold":  th_marble_gold,
 }
 
 

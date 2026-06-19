@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.0 — Luxury pack (+10 styles)
+- Added a **Luxe** pack (10 new styles): Platinum, Rose Gold, Black & Gold,
+  Diamond, Champagne, Emerald Gem, Sapphire Gem, Royal Velvet, Copper Bronze,
+  Marble Gold.
+- New categories **Luxe** and **Gem**; a marble texture helper (Fractal Noise
+  clipped inside the letters via alpha matte).
+- Library is now 20 styles; thumbnails regenerated & re-embedded.
+
+
 ## 2.0.0 — Engine rewrite (quality + reliability)
 - **Critical fix:** layer styles can't be added by script (`addProperty` fails),
   which made the metallic styles look flat. The engine no longer uses layer
