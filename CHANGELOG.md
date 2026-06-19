@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.6.0 — Fire & Smoke readability fix
+- Fire and Smoke kept the text legible: the LETTERS now stay crisp and readable
+  (hot gradient/solid fill + bevel) while the flames lick from the top edge and
+  the smoke rises as a separate drifting duplicate ABOVE the text — instead of
+  the whole word being distorted into the effect. Much clearer and more real.
+
+
 ## 3.5.0 — Liquid Metal + Fire & Smoke families (+20)
 - Liquid Metal (10, animated): flowing mercury surface (Turbulent Displace) +
   moving reflection (animated specular). Silver, Gold, Copper, Rose Gold,

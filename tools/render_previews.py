@@ -609,51 +609,63 @@ def _colorize_L(L, col):
     return out
 
 
+def _top_rim(m, depth=12):
+    """The top edge band of the mask (where flames/smoke originate)."""
+    rim = ImageChops.subtract(m, ImageChops.offset(m, 0, depth))
+    return rim.point(lambda v: 255 if v > 30 else 0)
+
+
 def render_fire(word, low, high, bgc=(10, 6, 4), t=0.0):
     img = bg(bgc, vignette=False)
     m, _ = mask_of(word, fit_size(word))
     lo, hi = hx(low), hx(high)
-    # flame tongues rising above the letters
-    fl = Image.new("L", (W, H), 0); arr = np.array(m)
-    for i in range(1, 9):
+    # flame tongues licking up from the TOP rim only (letters stay clear)
+    rim = _top_rim(m, 14)
+    fl = Image.new("L", (W, H), 0); arr = np.array(rim)
+    for i in range(1, 8):
         out = np.zeros_like(arr)
         for yy in range(H):
-            out[yy] = np.roll(arr[yy], int(11 * math.sin(yy / 16.0 + i * 0.8 + t * 6)))
-        s = ImageChops.offset(Image.fromarray(out), 0, -i * 15).filter(ImageFilter.GaussianBlur(4 + i))
-        fl = ImageChops.add(fl, s.point(lambda v, i=i: int(v * max(0, 1.0 - i * 0.11))))
+            out[yy] = np.roll(arr[yy], int(9 * math.sin(yy / 13.0 + i * 0.9 + t * 6)))
+        s = ImageChops.offset(Image.fromarray(out), 0, -i * 11).filter(ImageFilter.GaussianBlur(3 + i))
+        fl = ImageChops.add(fl, s.point(lambda v, i=i: int(v * max(0, 1.0 - i * 0.15))))
     fa = np.array(fl).astype(float) / 255
-    flames = np.dstack([np.clip(fa * 2.2, 0, 1) * 255,
-                        np.clip(fa * 1.7 - 0.18, 0, 1) * 255,
-                        np.clip(fa * 0.7 - 0.45, 0, 1) * 255]).astype(np.uint8)
+    flames = np.dstack([np.clip(fa * 2.3, 0, 1) * 255,
+                        np.clip(fa * 1.6 - 0.18, 0, 1) * 255,
+                        np.clip(fa * 0.5 - 0.42, 0, 1) * 255]).astype(np.uint8)
     img = ImageChops.add(img, Image.fromarray(flames))
-    # fiery bloom
-    img = ImageChops.add(img, glow_layer(m, hi, 40, 0.9, passes=2))
-    img = ImageChops.add(img, glow_layer(m, (255, 120, 20), 24, 0.8, passes=1))
-    # hot gradient body
+    # warm bloom behind
+    img = ImageChops.add(img, glow_layer(m, hi, 44, 0.9, passes=2))
+    img = ImageChops.add(img, glow_layer(m, (255, 110, 20), 26, 0.85, passes=1))
+    # CRISP hot gradient letters on top (always readable)
     ys = np.linspace(1, 0, H)[:, None, None]
     grad = ((np.array(hi) * ys + np.array(lo) * (1 - ys)) * np.ones((H, W, 1))).astype(np.uint8)
     face = Image.new("RGB", (W, H), (0, 0, 0)); face.paste(Image.fromarray(grad), (0, 0), m)
+    face = emboss(face, m, 122, (255, 250, 210), 1.0, 3, shadow_color=tuple(int(c * 0.4) for c in lo))
     img.paste(face, (0, 0), m)
-    # white-hot core
-    core = m.point(lambda v: 255 if v > 200 else 0)
-    img = ImageChops.add(img, _colorize_L(core, (255, 240, 190)).filter(ImageFilter.GaussianBlur(1)))
+    paste(img, (255, 240, 180), ring(m, 1))   # bright rim
     return img
 
 
-def render_smoke(word, col, bgc=(14, 14, 16), t=0.0):
+def render_smoke(word, col, bgc=(16, 16, 18), t=0.0):
     img = bg(bgc)
     m, _ = mask_of(word, fit_size(word))
     c = hx(col)
-    sm = Image.new("L", (W, H), 0); arr = np.array(m)
-    for i in range(1, 11):
+    # smoke rising from the TOP rim, above the letters (letters stay readable)
+    rim = _top_rim(m, 14)
+    sm = Image.new("L", (W, H), 0); arr = np.array(rim)
+    for i in range(1, 10):
         out = np.zeros_like(arr)
         for yy in range(H):
-            out[yy] = np.roll(arr[yy], int(14 * math.sin(yy / 22.0 + i * 0.7 + t * 4)))
-        s = ImageChops.offset(Image.fromarray(out), 0, -i * 10 - int(t * 20)).filter(ImageFilter.GaussianBlur(6 + i * 1.6))
-        sm = ImageChops.add(sm, s.point(lambda v, i=i: int(v * max(0, 0.8 - i * 0.07))))
+            out[yy] = np.roll(arr[yy], int(12 * math.sin(yy / 20.0 + i * 0.7 + t * 4)))
+        s = ImageChops.offset(Image.fromarray(out), 0, -i * 13 - int(t * 22)).filter(ImageFilter.GaussianBlur(5 + i * 1.5))
+        sm = ImageChops.add(sm, s.point(lambda v, i=i: int(v * max(0, 0.75 - i * 0.08))))
     img = ImageChops.add(img, _colorize_L(sm, c))
-    body = _colorize_L(m, c).filter(ImageFilter.GaussianBlur(3))
-    img = Image.blend(img, ImageChops.add(img, body), 0.7)
+    # soft glow behind the letters
+    img = ImageChops.add(img, glow_layer(m, c, 16, 0.4))
+    # CRISP, readable letters (solid + light emboss)
+    face = _colorize_L(m, c)
+    face = emboss(face, m, 122, tuple(min(255, x + 55) for x in c), 0.7, 2, shadow_color=tuple(int(x * 0.45) for x in c))
+    img.paste(face, (0, 0), m)
     return img
 
 
