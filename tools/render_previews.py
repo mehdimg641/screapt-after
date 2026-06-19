@@ -476,7 +476,8 @@ def r_frosted():
 
 
 def render_glass(word, tint=(205, 228, 248), dark=False, bgc=(24, 32, 46),
-                 blobs=((150, 90, 130, (70, 110, 160)), (430, 210, 150, (110, 80, 150)), (300, 60, 110, (60, 140, 170)))):
+                 blobs=((150, 90, 130, (70, 110, 160)), (430, 210, 150, (110, 80, 150)), (300, 60, 110, (60, 140, 170))),
+                 sweep_t=0.32):
     """Apple-style liquid glass: refracted/blurred backdrop + tinted translucent
     body + bright edge lensing + specular sweep. Mirrors the JSX liquidGlass."""
     bgimg = bg(bgc)
@@ -504,8 +505,10 @@ def render_glass(word, tint=(205, 228, 248), dark=False, bgc=(24, 32, 46),
     img = Image.blend(img, body, blend)
     emb = emboss(img.copy(), m, 122, edge_hi, 1.5, 4, shadow_color=(15, 25, 40))
     img.paste(emb, (0, 0), m)
+    # specular sweep at position sweep_t (0..1 across the width) — drives the GIF
+    sx = int((-0.15 + sweep_t * 1.3) * W)
     streak = Image.new("L", (W, H), 0)
-    ImageDraw.Draw(streak).polygon([(150, 0), (250, 0), (140, H), (40, H)], fill=130)
+    ImageDraw.Draw(streak).polygon([(sx, 0), (sx + 100, 0), (sx - 10, H), (sx - 110, H)], fill=150)
     streak = ImageChops.multiply(streak.filter(ImageFilter.GaussianBlur(16)), m)
     img.paste(Image.new("RGB", (W, H), (255, 255, 255)), (0, 0), streak)
     paste(img, edge_hi, ring(m, 2))

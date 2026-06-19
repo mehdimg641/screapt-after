@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.1.0 — Animated Liquid Glass (+6 "Live" styles)
+- liquidGlass() gains an `animate` mode: the specular shine sweeps across the
+  letters in a loop (expression-driven CC Light Sweep) plus a subtle animated
+  liquid drift (Turbulent Displace) — Apple "liquid glass reacting to light".
+- Added 6 Glass Live styles: Clear, Dark, Azure, Mint, Rose, Graphite.
+- Renderer can now render the sweep at any position; added an animated-GIF
+  preview path. Library is now 63 styles.
+
+
 ## 3.0.0 — Apple-style Liquid Glass family (+10)
 - New "Glass" category with 10 Apple-inspired Liquid Glass styles: Clear,
   Regular, Dark, Frost, Azure, Mint, Rose, Amber, Violet, Graphite.
