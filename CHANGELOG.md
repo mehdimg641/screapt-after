@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.8.0 — Onyx family (+6 premium colour variants)
+- Added an "Onyx" category and 6 new premium glossy-lacquer variants of the
+  loved Onyx look: Sapphire, Emerald, Ruby, Amethyst, Gold (black-gold) and Teal.
+- Refactored Onyx into a reusable onyxSurface(accent) so any hue is one call;
+  the base Onyx Black now also gets the specular shine. All respect the Primary
+  colour override. Library is now 36 styles.
+
+
 ## 2.7.0 — Premium pass on every style
 - Added a real specular shine (CC Light Sweep) to all metals & gems for true
   reflective highlights.

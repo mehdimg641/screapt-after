@@ -227,14 +227,26 @@ def r_royal_velvet():
     return img
 
 
-def r_onyx():
-    img = bg((6, 6, 8))
-    m, _ = mask_of("ONYX", fit_size("ONYX"))
-    face = sheen(fill_rgb(m, (12, 12, 14)), m, 1.9, 0.5)
-    face = emboss(face, m, 122, (200, 200, 210), 0.9, 3)
+def render_onyx(word, base_dark, sheen_col, ring_col, glow_col=None, bgc=(6, 6, 8)):
+    img = bg(bgc)
+    m, _ = mask_of(word, fit_size(word))
+    if glow_col:
+        img = ImageChops.add(img, glow_layer(m, glow_col, 16, 0.4))
+    face = sheen(fill_rgb(m, base_dark), m, 2.1, 0.45, band=True)
+    face = emboss(face, m, 122, sheen_col, 1.15, 3, shadow_color=(0, 0, 0))
     img.paste(face, (0, 0), m)
-    paste(img, hx("#26262C"), ring(m, 2))
+    paste(img, ring_col, ring(m, 2))
+    img = spec_streak(img, m, alpha=0.7)
     return img
+
+
+def r_onyx():          return render_onyx("ONYX", (14, 14, 16), (205, 205, 214), hx("#26262C"))
+def r_onyx_sapphire(): return render_onyx("SAPPHIRE", (8, 16, 34), (110, 160, 235), hx("#1E3257"), (50, 100, 210), (5, 8, 18))
+def r_onyx_emerald():  return render_onyx("EMERALD", (6, 22, 15), (95, 224, 160), hx("#16402C"), (30, 170, 110), (4, 14, 9))
+def r_onyx_ruby():     return render_onyx("RUBY", (28, 8, 12), (255, 120, 140), hx("#551823"), (210, 55, 85), (16, 4, 7))
+def r_onyx_amethyst(): return render_onyx("AMETHYST", (20, 12, 34), (190, 140, 240), hx("#3C2857"), (150, 90, 230), (12, 7, 20))
+def r_onyx_gold():     return render_onyx("GOLD", (26, 18, 6), (255, 222, 140), hx("#5A4218"), (220, 160, 55), (16, 11, 4))
+def r_onyx_teal():     return render_onyx("TEAL", (4, 26, 28), (95, 224, 224), hx("#164648"), (35, 175, 180), (3, 15, 16))
 
 
 def r_navy_gold():
@@ -451,10 +463,13 @@ STYLES = [
     ("sapphire", "Sapphire Gem", r_sapphire), ("royal_velvet", "Royal Velvet", r_royal_velvet),
     ("copper_bronze", "Copper Bronze", r_copper), ("marble_gold", "Marble Gold", r_marble),
     ("ruby", "Ruby Gem", r_ruby), ("amethyst", "Amethyst Gem", r_amethyst),
-    ("onyx", "Onyx Gloss", r_onyx), ("pearl", "Pearl", r_pearl),
+    ("onyx", "Onyx Black", r_onyx), ("pearl", "Pearl", r_pearl),
     ("titanium", "Titanium", r_titanium), ("liquid_gold", "Liquid Gold", r_liquidgold),
     ("frosted_glass", "Liquid Glass", r_frosted), ("holographic", "Holographic", r_holographic),
     ("neon_gold", "Neon Gold", r_neon_gold), ("navy_gold", "Navy & Gold", r_navy_gold),
+    ("onyx_sapphire", "Onyx Sapphire", r_onyx_sapphire), ("onyx_emerald", "Onyx Emerald", r_onyx_emerald),
+    ("onyx_ruby", "Onyx Ruby", r_onyx_ruby), ("onyx_amethyst", "Onyx Amethyst", r_onyx_amethyst),
+    ("onyx_gold", "Onyx Gold", r_onyx_gold), ("onyx_teal", "Onyx Teal", r_onyx_teal),
 ]
 
 
@@ -481,6 +496,10 @@ def main():
     sheet(rendered[0:10], "/tmp/sheet_trend.png")
     sheet(rendered[10:20], "/tmp/sheet_luxe1.png")
     sheet(rendered[20:30], "/tmp/sheet_luxe2.png")
+    # Onyx family sheet: original Onyx Black + the 6 colour variants
+    idx = dict((s[0], i) for i, s in enumerate(STYLES))
+    onyx_ids = ["onyx", "onyx_sapphire", "onyx_emerald", "onyx_ruby", "onyx_amethyst", "onyx_gold", "onyx_teal"]
+    sheet([rendered[idx[i]] for i in onyx_ids], "/tmp/sheet_onyx.png")
     print("done:", len(rendered), "renders ->", OUT)
 
 
