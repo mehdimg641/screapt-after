@@ -732,18 +732,15 @@ def render_ice(word, c="#BFE8FF", bgc=(10, 16, 24)):
     return img
 
 
-def render_synthwave(word):
-    # dusk gradient bg + sun + perspective grid
+def render_synthwave(word, top="#2DE2FF", bot="#FF2E7E"):
     arr = np.zeros((H, W, 3), np.float32)
-    top = np.array([40, 12, 60]); botc = np.array([12, 6, 26])
+    tcol = np.array([40, 12, 60]); botc = np.array([12, 6, 26])
     ys = np.linspace(0, 1, H)[:, None, None]
-    arr[:] = (top * (1 - ys) + botc * ys)
+    arr[:] = (tcol * (1 - ys) + botc * ys)
     img = Image.fromarray(arr.astype(np.uint8))
     d = ImageDraw.Draw(img)
-    # sun
     sun = Image.new("L", (W, H), 0); ImageDraw.Draw(sun).ellipse([W / 2 - 90, 70, W / 2 + 90, 250], fill=255)
-    img = ImageChops.add(img, _colorize_L(sun.filter(ImageFilter.GaussianBlur(2)), (255, 120, 90)))
-    # grid (lower third)
+    img = ImageChops.add(img, _colorize_L(sun.filter(ImageFilter.GaussianBlur(2)), hx(bot)))
     gy0 = int(H * 0.66)
     for k in range(0, 9):
         yy = gy0 + (H - gy0) * (k / 8.0) ** 1.6
@@ -751,11 +748,11 @@ def render_synthwave(word):
     for vx in range(-10, 11):
         d.line([(W / 2, gy0), (W / 2 + vx * 60, H)], fill=(120, 40, 120), width=1)
     m, _ = mask_of(word, fit_size(word, 420))
-    lo = np.array(hx("#FF2E7E"), float); hi = np.array(hx("#2DE2FF"), float)
+    lo = np.array(hx(bot), float); hi = np.array(hx(top), float)
     ys2 = np.linspace(1, 0, H)[:, None, None]
     grad = ((hi * ys2 + lo * (1 - ys2)) * np.ones((H, W, 1))).astype(np.uint8)
-    img = ImageChops.add(img, glow_layer(m, hx("#FF2E7E"), 26, 0.7))
-    img = ImageChops.add(img, glow_layer(m, hx("#2DE2FF"), 18, 0.6))
+    img = ImageChops.add(img, glow_layer(m, hx(bot), 26, 0.7))
+    img = ImageChops.add(img, glow_layer(m, hx(top), 18, 0.6))
     face = Image.new("RGB", (W, H), (0, 0, 0)); face.paste(Image.fromarray(grad), (0, 0), m)
     face = emboss(face, m, 122, (255, 255, 255), 1.1, 3, shadow_color=(60, 10, 50))
     img.paste(face, (0, 0), m)
@@ -763,16 +760,15 @@ def render_synthwave(word):
     return img
 
 
-def render_goldfoil(word):
-    img = bg((14, 11, 4))
+def render_goldfoil(word, dark="#8A5A12", light="#FFF0B0", edge="#FFF8D8", glow="#FFCB5E", stroke="#7A521A", bgc=(14, 11, 4)):
+    img = bg(bgc)
     m, _ = mask_of(word, fit_size(word))
-    lo = np.array(hx("#8A5A12"), float); hi = np.array(hx("#FFF0B0"), float)
+    lo = np.array(hx(dark), float); hi = np.array(hx(light), float)
     ys = np.linspace(1, 0, H)[:, None, None]
     grad = ((hi * ys + lo * (1 - ys)) * np.ones((H, W, 1))).astype(np.uint8)
-    img = ImageChops.add(img, glow_layer(m, hx("#FFCB5E"), 24, 0.55))
+    img = ImageChops.add(img, glow_layer(m, hx(glow), 24, 0.55))
     face = Image.new("RGB", (W, H), (0, 0, 0)); face.paste(Image.fromarray(grad), (0, 0), m)
-    face = emboss(face, m, 122, hx("#FFF8D8"), 1.2, 4, shadow_color=(60, 38, 6))
-    # foil grain
+    face = emboss(face, m, 122, hx(edge), 1.2, 4, shadow_color=tuple(int(c * 0.5) for c in hx(dark)))
     gr = (np.random.RandomState(4).rand(H, W) * 40 - 20)
     fa = np.clip(np.asarray(face).astype(np.float32) + gr[..., None], 0, 255).astype(np.uint8)
     face = Image.fromarray(fa)
@@ -783,14 +779,53 @@ def render_goldfoil(word):
         x, y = random.randint(0, W - 1), random.randint(0, H - 1)
         if mm[y, x] > 120: ds.ellipse([x, y, x + 2, y + 2], fill=255)
     img = ImageChops.add(img, _colorize_L(sp, (255, 250, 220)))
-    paste(img, hx("#7A521A"), ring(m, 1))
+    paste(img, hx(stroke), ring(m, 1))
     return img
 
 
-def r_electric():   return render_electric("ELECTRIC")
-def r_ice():        return render_ice("FROZEN")
-def r_synthwave():  return render_synthwave("RETRO")
-def r_goldfoil():   return render_goldfoil("GOLD FOIL")
+def r_electric():   return render_electric("ELECTRIC", "#3FC8FF")
+def r_electric_blue():   return render_electric("ELECTRIC", "#2E7BFF")
+def r_electric_purple(): return render_electric("ELECTRIC", "#9B5CFF")
+def r_electric_pink():   return render_electric("ELECTRIC", "#FF4FD0")
+def r_electric_red():    return render_electric("ELECTRIC", "#FF3B3B")
+def r_electric_green():  return render_electric("ELECTRIC", "#3BFF7A")
+def r_electric_gold():   return render_electric("ELECTRIC", "#FFC83B")
+def r_electric_white():  return render_electric("ELECTRIC", "#E8F4FF")
+def r_electric_orange(): return render_electric("ELECTRIC", "#FF8A2E")
+def r_electric_aqua():   return render_electric("ELECTRIC", "#2EF0E0")
+
+def r_ice():          return render_ice("FROZEN", "#BFE8FF")
+def r_ice_cyan():     return render_ice("FROZEN", "#9FE8FF")
+def r_ice_teal():     return render_ice("FROZEN", "#9FF0E0")
+def r_ice_diamond():  return render_ice("FROZEN", "#E6F4FF")
+def r_ice_rose():     return render_ice("FROZEN", "#FFD0E0")
+def r_ice_amethyst(): return render_ice("FROZEN", "#D8C0FF")
+def r_ice_mint():     return render_ice("FROZEN", "#BFFFD8")
+def r_ice_champagne():return render_ice("FROZEN", "#F0E6C8")
+def r_ice_sapphire(): return render_ice("FROZEN", "#7FB0FF")
+def r_ice_emerald():  return render_ice("FROZEN", "#9FFFC8")
+
+def r_synthwave():    return render_synthwave("RETRO", "#2DE2FF", "#FF2E7E")
+def r_synth_outrun(): return render_synthwave("RETRO", "#FFB02E", "#FF2E7E")
+def r_synth_vapor():  return render_synthwave("RETRO", "#7FE8FF", "#FFA8E6")
+def r_synth_miami():  return render_synthwave("RETRO", "#2EE6C0", "#FF5FA8")
+def r_synth_sunset(): return render_synthwave("RETRO", "#FFD86E", "#FF3B5E")
+def r_synth_night():  return render_synthwave("RETRO", "#2DE2FF", "#8F2FFF")
+def r_synth_cyber():  return render_synthwave("RETRO", "#F4FF3B", "#FF2FD0")
+def r_synth_blue():   return render_synthwave("RETRO", "#5C9CFF", "#9B5CFF")
+def r_synth_hotline():return render_synthwave("RETRO", "#FF6EC7", "#7A2BFF")
+def r_synth_aqua():   return render_synthwave("RETRO", "#2EF0E0", "#2E7BFF")
+
+def r_goldfoil():       return render_goldfoil("FOIL", "#8A5A12", "#FFF0B0", "#FFF8D8", "#FFCB5E", "#7A521A")
+def r_foil_silver():    return render_goldfoil("FOIL", "#5E6878", "#FFFFFF", "#FFFFFF", "#D8E0EA", "#3A4250", bgc=(10, 11, 14))
+def r_foil_rose():      return render_goldfoil("FOIL", "#8A4A3A", "#FFE3D8", "#FFEDE4", "#E8B0A0", "#6E3B30", bgc=(16, 10, 9))
+def r_foil_copper():    return render_goldfoil("FOIL", "#5E3A12", "#FFD3A0", "#FFE6C8", "#E2965A", "#4A2509", bgc=(14, 9, 5))
+def r_foil_champagne(): return render_goldfoil("FOIL", "#8A7A4E", "#FFFDF2", "#FFFEF8", "#E5D6A8", "#A8965E", bgc=(14, 12, 6))
+def r_foil_bronze():    return render_goldfoil("FOIL", "#3A2608", "#F0C878", "#FFE8B0", "#C89A4A", "#2A1A06", bgc=(12, 9, 4))
+def r_foil_black():     return render_goldfoil("FOIL", "#0E0E10", "#3A3A40", "#E6B450", "#E6B450", "#E6B450", bgc=(5, 5, 6))
+def r_foil_blue():      return render_goldfoil("FOIL", "#16315E", "#BFE0FF", "#E0F0FF", "#5C9CFF", "#0E1F3E", bgc=(6, 9, 16))
+def r_foil_emerald():   return render_goldfoil("FOIL", "#063D29", "#9FFFD0", "#D8FFEC", "#3CE0A0", "#042518", bgc=(5, 12, 9))
+def r_foil_violet():    return render_goldfoil("FOIL", "#3A1A5E", "#E6CCFF", "#F2E6FF", "#B388FF", "#23103A", bgc=(10, 6, 16))
 
 
 def r_smoke_white():  return render_smoke("SMOKE", "#C8CCD2")
@@ -845,8 +880,26 @@ STYLES = [
     ("smoke_white", "Smoke", r_smoke_white), ("smoke_dark", "Smoke Dark", r_smoke_dark),
     ("smoke_blue", "Smoke Blue", r_smoke_blue), ("smoke_purple", "Smoke Mystic", r_smoke_purple),
     ("smoke_ember", "Smoke Ember", r_smoke_ember),
-    ("electric", "Electric", r_electric), ("ice_frozen", "Frozen Ice", r_ice),
-    ("synthwave", "Synthwave 80s", r_synthwave), ("gold_foil", "Gold Foil", r_goldfoil),
+    ("electric", "Electric Cyan", r_electric), ("electric_blue", "Electric Blue", r_electric_blue),
+    ("electric_purple", "Electric Purple", r_electric_purple), ("electric_pink", "Electric Pink", r_electric_pink),
+    ("electric_red", "Electric Red", r_electric_red), ("electric_green", "Electric Green", r_electric_green),
+    ("electric_gold", "Electric Gold", r_electric_gold), ("electric_white", "Electric White", r_electric_white),
+    ("electric_orange", "Electric Orange", r_electric_orange), ("electric_aqua", "Electric Aqua", r_electric_aqua),
+    ("ice_frozen", "Frozen Ice", r_ice), ("ice_cyan", "Ice Cyan", r_ice_cyan),
+    ("ice_teal", "Ice Teal", r_ice_teal), ("ice_diamond", "Ice Diamond", r_ice_diamond),
+    ("ice_rose", "Ice Rose", r_ice_rose), ("ice_amethyst", "Ice Amethyst", r_ice_amethyst),
+    ("ice_mint", "Ice Mint", r_ice_mint), ("ice_champagne", "Ice Champagne", r_ice_champagne),
+    ("ice_sapphire", "Ice Sapphire", r_ice_sapphire), ("ice_emerald", "Ice Emerald", r_ice_emerald),
+    ("synthwave", "Synthwave 80s", r_synthwave), ("synth_outrun", "Outrun", r_synth_outrun),
+    ("synth_vapor", "Vaporwave", r_synth_vapor), ("synth_miami", "Miami", r_synth_miami),
+    ("synth_sunset", "Synth Sunset", r_synth_sunset), ("synth_night", "Neon Night", r_synth_night),
+    ("synth_cyber", "Cyberpunk", r_synth_cyber), ("synth_blue", "Retro Blue", r_synth_blue),
+    ("synth_hotline", "Hotline", r_synth_hotline), ("synth_aqua", "Aqua Synth", r_synth_aqua),
+    ("gold_foil", "Gold Foil", r_goldfoil), ("foil_silver", "Silver Foil", r_foil_silver),
+    ("foil_rose", "Rose Gold Foil", r_foil_rose), ("foil_copper", "Copper Foil", r_foil_copper),
+    ("foil_champagne", "Champagne Foil", r_foil_champagne), ("foil_bronze", "Bronze Foil", r_foil_bronze),
+    ("foil_black", "Black Gold Foil", r_foil_black), ("foil_blue", "Blue Foil", r_foil_blue),
+    ("foil_emerald", "Emerald Foil", r_foil_emerald), ("foil_violet", "Violet Foil", r_foil_violet),
 ]
 
 
@@ -892,8 +945,14 @@ def main():
     fs_ids = ["fire_classic", "fire_ember", "fire_blue", "fire_green", "fire_purple",
               "smoke_white", "smoke_dark", "smoke_blue", "smoke_purple", "smoke_ember"]
     sheet([rendered[idx[i]] for i in fs_ids], "/tmp/sheet_firesmoke.png")
-    new_ids = ["electric", "ice_frozen", "synthwave", "gold_foil"]
-    sheet([rendered[idx[i]] for i in new_ids], "/tmp/sheet_newideas.png")
+    sheet([rendered[idx[i]] for i in ["electric", "electric_blue", "electric_purple", "electric_pink",
+           "electric_red", "electric_green", "electric_gold", "electric_white", "electric_orange", "electric_aqua"]], "/tmp/sheet_electric.png")
+    sheet([rendered[idx[i]] for i in ["ice_frozen", "ice_cyan", "ice_teal", "ice_diamond", "ice_rose",
+           "ice_amethyst", "ice_mint", "ice_champagne", "ice_sapphire", "ice_emerald"]], "/tmp/sheet_ice.png")
+    sheet([rendered[idx[i]] for i in ["synthwave", "synth_outrun", "synth_vapor", "synth_miami", "synth_sunset",
+           "synth_night", "synth_cyber", "synth_blue", "synth_hotline", "synth_aqua"]], "/tmp/sheet_synthwave.png")
+    sheet([rendered[idx[i]] for i in ["gold_foil", "foil_silver", "foil_rose", "foil_copper", "foil_champagne",
+           "foil_bronze", "foil_black", "foil_blue", "foil_emerald", "foil_violet"]], "/tmp/sheet_foil.png")
     print("done:", len(rendered), "renders ->", OUT)
 
 

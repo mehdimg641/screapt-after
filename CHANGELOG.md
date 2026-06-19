@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.8.0 — Four full families (+36): Electric, Ice, Synthwave, Gold Foil
+- Electric (10, animated): Cyan, Blue, Purple, Pink, Red, Green, Gold, White,
+  Orange, Aqua — lightning bolts + crackle + flicker.
+- Ice (10): Frozen, Cyan, Teal, Diamond, Rose, Amethyst, Mint, Champagne,
+  Sapphire, Emerald — crystalline frost.
+- Synthwave (10): 80s, Outrun, Vaporwave, Miami, Sunset, Neon Night, Cyberpunk,
+  Retro Blue, Hotline, Aqua — sun + grid + neon chrome.
+- Gold Foil (10): Gold, Silver, Rose Gold, Copper, Champagne, Bronze, Black Gold,
+  Blue, Emerald, Violet — foil grain + sparkle.
+- New Electric / Ice / Synthwave / Foil categories. Library is now 152 styles.
+
+
 ## 3.7.0 — New idea samples (+4): Electric, Ice, Synthwave, Gold Foil
 - Electric (animated): high-voltage neon, white-hot core, crackling edges,
   flickering electric bloom.
