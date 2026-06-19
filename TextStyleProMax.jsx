@@ -23,7 +23,7 @@
     // 0. Constants & small utilities
     // -------------------------------------------------------------------------
     var SCRIPT_NAME = "Text Style Pro Max";
-    var SCRIPT_VERSION = "2.6.0";
+    var SCRIPT_VERSION = "2.7.0";
 
     // Layer-style group on every layer.
     var LS_GROUP = "ADBE Layer Styles";
@@ -282,20 +282,39 @@
         return sol;
     }
 
-    // Metallic surface: real gradient sheen in the letters + bright bevel + bloom.
+    // Specular highlight streak (CC Light Sweep ships with AE). Best-effort —
+    // gives metals/gems/glass a real reflective shine.
+    function specular(layer, dir, width, intensity) {
+        var s = addEffect(layer, "CC Light Sweep", "Shine");
+        if (!s) return null;
+        try {
+            var c = layer.containingComp;
+            s.property(1).setValue([c.width * 0.36, c.height * 0.5]); // Center
+        } catch (e) {}
+        setFx(s, 2, dir == null ? 28 : dir);        // Direction
+        setFx(s, 4, width == null ? 95 : width);    // Width
+        setFx(s, 5, intensity == null ? 35 : intensity); // Sweep Intensity
+        try { setFx(s, 6, 0); } catch (e) {}        // Edge Intensity off (bevel handles it)
+        return s;
+    }
+
+    // Metallic surface: real gradient sheen in the letters + bright bevel +
+    // a specular shine + bloom.
     // Signature stable: (layer, o, darkCol, midCol[unused], lightCol, edge, glowR, warm)
     function metalSurface(layer, o, shadowCol, midCol, hiCol, edge, glowR, warmGlow) {
         var pl = gradientInText(layer, shadowCol, hiCol || [1, 1, 1], 90);
         bevelAlpha(pl, edge * (0.7 + 0.5 * o.intensity), -55, hiCol || [1, 1, 1], 0.85 * o.intensity);
-        glowFx(pl, glowR * o.intensity, warmGlow ? 1.0 : 0.9, 60, "Metal Bloom");
+        specular(pl, 28, 95, 32);
+        glowFx(pl, glowR * o.intensity, warmGlow ? 1.0 : 0.9, 62, "Metal Bloom");
         dropShadowFx(pl, warmGlow ? [0.05, 0.02, 0] : [0, 0, 0], 62, 135, 9 + edge, 15);
         return pl;
     }
 
-    // Gemstone surface: gradient body + faceted bevel + strong coloured glow.
+    // Gemstone surface: gradient body + faceted bevel + specular + strong glow.
     function gemSurface(layer, o, base, edgeCol, glowR) {
         var pl = gradientInText(layer, shade(base, -0.5), shade(base, 0.55), 90);
         bevelAlpha(pl, 7 * (0.7 + 0.5 * o.intensity), -55, edgeCol, 1.0 * o.intensity);
+        specular(pl, 32, 70, 45);
         glowFx(pl, glowR * o.intensity, 1.7, 46, "Gem Glow");
         glowFx(pl, 12, 1.2, 62, "Facet Shine");
         dropShadowFx(pl, shade(base, -0.6), 55, 135, 11, 15);
@@ -533,17 +552,19 @@
         },
         {
             id: "fluid_morph", name: "Fluid Morph", cat: "FX", badge: "TREND",
-            desc: "Liquid wobbling edges (animated Turbulent Displace) + glossy tonemap + glow.",
+            desc: "Glossy liquid: a 2-colour gradient body with animated wobbling edges (Turbulent Displace) + specular sheen.",
             apply: function (layer, o) {
                 var a = o._primaryIsDefault ? hexToRgb("#5B8CFF") : o.primary;
                 var b = o._secondaryIsDefault ? hexToRgb("#B852FF") : o.secondary;
-                textFill(layer, mix(a, b, 0.5));
-                bevelAlpha(layer, 8 * o.intensity, -55, shade(b, 0.5), 0.8);
-                textStroke(layer, shade(a, 0.3), 2, false);
-                var td = addEffect(layer, "ADBE Turbulent Displace", "Liquid");
-                if (td) { setFx(td, 2, 22 * o.intensity); setFx(td, 3, 60); setFxExpr(td, 7, "time*120"); }
-                glowFx(layer, 28 * o.intensity, 1.4, 48, "Sheen");
-                dropShadowFx(layer, shade(a, -0.6), 45, 135, 8, 14);
+                // real 2-colour gradient body inside the letters
+                var pl = gradientInText(layer, a, b, 90);
+                // liquid wobble on the whole shape (edges included)
+                var td = addEffect(pl, "ADBE Turbulent Displace", "Liquid");
+                if (td) { setFx(td, 2, 26 * o.intensity); setFx(td, 3, 70); setFxExpr(td, 7, "time*120"); }
+                bevelAlpha(pl, 8 * (0.7 + 0.5 * o.intensity), -55, shade(b, 0.55), 0.9 * o.intensity);
+                specular(pl, 30, 90, 38);
+                glowFx(pl, 24 * o.intensity, 1.3, 55, "Sheen");
+                dropShadowFx(pl, shade(a, -0.6), 50, 135, 10, 16);
             }
         },
         {
@@ -559,14 +580,23 @@
             }
         },
         {
-            id: "outline_bubble", name: "Outline Bubble", cat: "Retro", badge: "Y2K",
-            desc: "Hollow Y2K sticker outline: no fill, thick rounded stroke, soft drop shadow.",
+            id: "outline_bubble", name: "Bubble Y2K", cat: "Retro", badge: "Y2K",
+            desc: "Glossy puffy sticker: bright candy fill, rounded gloss bevel, thick dark outline and a sticker shadow.",
             apply: function (layer, o) {
                 var c = o._primaryIsDefault ? hexToRgb("#FF6EB4") : o.primary;
-                textNoFill(layer);
-                textStroke(layer, c, 7 * o.intensity, true);
-                glowFx(layer, 10, 1.0, 50, "Soft Edge");
-                dropShadowFx(layer, [0, 0, 0], 45, 135, 8, 10);
+                textFill(layer, c);
+                // puffy rounded gloss
+                var b = addEffect(layer, "ADBE Bevel Alpha", "Puff");
+                setFx(b, 1, 9 * o.intensity);     // thick edge
+                setFx(b, 2, -55 * Math.PI / 180); // light angle
+                setFx(b, 3, [1, 1, 1]);
+                setFx(b, 4, 0.95);
+                // thick candy outline
+                textStroke(layer, shade(c, -0.5), 7 * o.intensity, false);
+                // glossy top highlight (edge-only bloom so it stays clean)
+                specular(layer, 26, 80, 40);
+                glowFx(layer, 8, 0.8, 75, "Gloss");
+                dropShadowFx(layer, [0, 0, 0], 50, 135, 12, 14);
             }
         },
 

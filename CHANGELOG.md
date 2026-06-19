@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.7.0 — Premium pass on every style
+- Added a real specular shine (CC Light Sweep) to all metals & gems for true
+  reflective highlights.
+- Fluid Morph rebuilt: real 2-colour gradient body + animated wobbling edges
+  (Turbulent Displace on the precomp) + specular sheen.
+- "Outline Bubble" -> "Bubble Y2K": glossy puffy candy sticker (bright fill,
+  rounded gloss bevel, thick dark outline, sticker shadow).
+- Renderer updated to match (specular streaks, fluid gradient, bubble gloss).
+
+
 ## 2.6.0 — Liquid Glass redesigned (real glass, not faded text)
 - Reworked "Frosted Glass" into a proper **Liquid Glass**: a clear gradient
   glass body (via gradient-in-letters), bright refractive bevel edges, an

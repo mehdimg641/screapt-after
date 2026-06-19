@@ -126,6 +126,16 @@ def ring(mask, width):
     return ImageChops.subtract(mask.filter(ImageFilter.MaxFilter(width * 2 + 1)), mask)
 
 
+def spec_streak(img, mask, color=(255, 255, 255), x=0.34, w=72, alpha=0.6):
+    """A diagonal specular shine clipped to the letters (mirrors CC Light Sweep)."""
+    streak = Image.new("L", (W, H), 0)
+    cx = int(W * x)
+    ImageDraw.Draw(streak).polygon([(cx, 0), (cx + w, 0), (cx - 50, H), (cx - 120, H)], fill=int(255 * alpha))
+    streak = ImageChops.multiply(streak.filter(ImageFilter.GaussianBlur(13)), mask)
+    img.paste(Image.new("RGB", (W, H), color), (0, 0), streak)
+    return img
+
+
 def label(img, name):
     d = ImageDraw.Draw(img)
     d.text((16, H - 30), name, font=font(20), fill=(235, 238, 245))
@@ -155,6 +165,8 @@ def render_metal(word, fill, bevel_hi, stroke, glow=None, glow_r=22, warm=False,
     # stroke
     if stroke:
         paste(img, stroke, ring(m, 2))
+    # specular shine
+    img = spec_streak(img, m, alpha=0.5)
     return img
 
 
@@ -169,6 +181,8 @@ def render_gem(word, fill, edge, glow, glow_r=30, bgc=(12, 12, 18)):
     paste(img, edge, ring(m, 2))
     # facet sparkle
     paste(img, (255, 255, 255), ring(m, 1).point(lambda v: v if random.random() > .3 else 0))
+    # specular shine
+    img = spec_streak(img, m, alpha=0.65)
     return img
 
 
@@ -272,11 +286,16 @@ def r_marquee():
 
 
 def r_outline():
-    img = bg((20, 22, 28))
-    m, _ = mask_of("OUTLINE", fit_size("OUTLINE"))
-    sh = ring(m, 7).filter(ImageFilter.GaussianBlur(5))
-    img = ImageChops.add(img, ImageChops.offset(fill_rgb(sh.point(lambda v: 255), (0, 0, 0)), 3, 6))
-    paste(img, hx("#FF6EB4"), ring(m, 4))
+    img = bg((22, 16, 26))
+    m, _ = mask_of("BUBBLE", fit_size("BUBBLE"))
+    c = hx("#FF6EB4")
+    sh = fill_rgb(m, (0, 0, 0)).filter(ImageFilter.GaussianBlur(12))
+    img = ImageChops.subtract(img, ImageChops.offset(sh, 8, 12).point(lambda v: int(v * 0.5)))
+    face = sheen(fill_rgb(m, c), m, 1.35, 0.72, band=True)
+    face = emboss(face, m, 122, (255, 232, 246), 1.2, 5, shadow_color=tuple(int(x * 0.4) for x in c))
+    img.paste(face, (0, 0), m)
+    paste(img, tuple(int(x * 0.5) for x in c), ring(m, 5))
+    img = spec_streak(img, m, alpha=0.7)
     return img
 
 
@@ -311,13 +330,19 @@ def r_fluid():
     m, _ = mask_of("FLUID", fit_size("FLUID"))
     arr = np.array(m); out = np.zeros_like(arr)
     for yy in range(H):
-        out[yy] = np.roll(arr[yy], int(8 * math.sin(yy / 14.0)))
+        out[yy] = np.roll(arr[yy], int(9 * math.sin(yy / 13.0)))
     wob = Image.fromarray(out)
     a, b = hx("#5B8CFF"), hx("#B852FF")
-    img = ImageChops.add(img, glow_layer(wob, b, 26, 0.8))
-    face = emboss(sheen(fill_rgb(wob, tuple((a[k] + b[k]) // 2 for k in range(3))), wob, 1.35, 0.7), wob, 122, hx("#D8C0FF"), 0.8, 3)
-    img.paste(face, (0, 0), wob)
-    paste(img, hx("#7FA0FF"), ring(wob, 2))
+    img = ImageChops.add(img, glow_layer(wob, b, 24, 0.7))
+    # 2-colour vertical gradient body
+    ys = np.linspace(0, 1, H)[:, None, None]
+    grad = (np.array(b) * (1 - ys) + np.array(a) * ys) * np.ones((H, W, 1))
+    body = Image.new("RGB", (W, H), (0, 0, 0))
+    body.paste(Image.fromarray(grad.astype(np.uint8)), (0, 0), wob)
+    img.paste(body, (0, 0), wob)
+    emb = emboss(img.copy(), wob, 122, hx("#E0CCFF"), 1.1, 3, shadow_color=(30, 30, 70))
+    img.paste(emb, (0, 0), wob)
+    img = spec_streak(img, wob, alpha=0.6)
     return img
 
 
@@ -419,7 +444,7 @@ STYLES = [
     ("variable_kinetic", "Variable Kinetic", r_kinetic), ("neon_cyberpunk", "Neon Cyberpunk", r_neon),
     ("retro_marquee", "Retro Marquee", r_marquee), ("extrude_3d", "3D Extrude", r_3d),
     ("glitch_vhs", "Glitch VHS", r_glitch), ("fluid_morph", "Fluid Morph", r_fluid),
-    ("gradient_bold", "Gradient Bold", r_gradient_bold), ("outline_bubble", "Outline Bubble", r_outline),
+    ("gradient_bold", "Gradient Bold", r_gradient_bold), ("outline_bubble", "Bubble Y2K", r_outline),
     ("platinum", "Platinum", r_platinum), ("rose_gold", "Rose Gold", r_rose),
     ("black_gold", "Black & Gold", r_black_gold), ("diamond", "Diamond", r_diamond),
     ("champagne", "Champagne", r_champagne), ("emerald", "Emerald Gem", r_emerald),
